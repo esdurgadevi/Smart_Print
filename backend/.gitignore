@@ -1,0 +1,15 @@
+# Node
+node_modules/
+
+# Backend uploads
+uploads/
+
+# Env files
+.env
+
+# Logs
+*.log
+
+# Build files
+dist/
+build/
