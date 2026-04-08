@@ -27,7 +27,7 @@ const userModel = sequelize.define(
       allowNull: false,
     },
     role: {
-      type: DataTypes.ENUM("SUPER_ADMIN", "SHOP_ADMIN", "USER"),
+      type: DataTypes.ENUM("SUPER_ADMIN", "SHOP_ADMIN", "USER", "DELIVERY_PERSON"),
       defaultValue: "USER",
     },
     otp: {

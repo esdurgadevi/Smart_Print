@@ -2,7 +2,18 @@ import { Order, Shop, User, Service } from "../models/index.js";
 import fs from "fs";
 import { sendOrderCompletedEmail } from "../services/emailService.js";
 import { PDFDocument } from "pdf-lib";
-
+import { DeliveryPerson } from "../models/index.js";
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * (Math.PI / 180)) *
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 export const uploadDocument = async (req, res) => {
   try {
     if (!req.file) {
@@ -31,7 +42,7 @@ export const uploadDocument = async (req, res) => {
 
 export const placeOrder = async (req, res) => {
   try {
-    const { shopId, serviceId, documentUrl, pageCount, pageRange, copies, totalAmount } = req.body;
+    const { shopId, serviceId, documentUrl, pageCount, pageRange, copies, totalAmount, deliveryType, deliveryAddress, deliveryLatitude, deliveryLongitude } = req.body;
 
     if (!shopId || !serviceId || !totalAmount) {
       return res.status(400).json({ message: "Missing essential order fields" });
@@ -46,7 +57,52 @@ export const placeOrder = async (req, res) => {
       pageRange,
       copies: copies || 1,
       totalAmount,
+      deliveryType: deliveryType || "pickup",
+      deliveryAddress,
+      deliveryLatitude,
+      deliveryLongitude,
+      deliveryStatus: deliveryType === "delivery" ? "pending" : null,
     });
+    // ===== AUTO ASSIGN DELIVERY PERSON =====
+    if (deliveryType === "delivery") {
+      const deliveryPersons = await DeliveryPerson.findAll({
+        where: { isOnline: true }
+      });
+
+      let assigned = false;
+
+      // 1️⃣ Try nearby (within 5km)
+      for (let dp of deliveryPersons) {
+        if (dp.currentLatitude && dp.currentLongitude) {
+          const distance = calculateDistance(
+            deliveryLatitude,
+            deliveryLongitude,
+            dp.currentLatitude,
+            dp.currentLongitude
+          );
+
+          if (distance <= 5) {
+            await newOrder.update({
+              deliveryPersonId: dp.userId,
+              deliveryStatus: "assigned"
+            });
+            assigned = true;
+            break;
+          }
+        }
+      }
+
+      // 2️⃣ If no nearby → assign anyone
+      if (!assigned && deliveryPersons.length > 0) {
+        const randomDP =
+          deliveryPersons[Math.floor(Math.random() * deliveryPersons.length)];
+
+        await newOrder.update({
+          deliveryPersonId: randomDP.userId,
+          deliveryStatus: "assigned"
+        });
+      }
+    }
 
     res.status(201).json({ message: "Order placed successfully", order: newOrder });
   } catch (error) {
@@ -86,6 +142,13 @@ export const placeBatchOrder = async (req, res) => {
         pageRange: item.pageRange,
         copies: item.copies || 1,
         totalAmount: item.totalAmount,
+        deliveryType: item.deliveryType || "pickup",
+        deliveryAddress: item.deliveryAddress,
+        deliveryLatitude: item.deliveryLatitude,
+        deliveryLongitude: item.deliveryLongitude,
+        deliveryStatus: item.deliveryType === "delivery" ? "pending" : null,
+        pickupOtp: item.deliveryType === "delivery" ? generateOtp() : null,
+        deliveryOtp: item.deliveryType === "delivery" ? generateOtp() : null,
       });
       createdOrders.push(newOrder);
     }
@@ -138,5 +201,36 @@ export const updateOrderStatus = async (req, res) => {
     res.status(200).json({ message: "Order status updated successfully", order });
   } catch (error) {
     res.status(500).json({ message: "Failed to update order", error: error.message });
+  }
+};
+
+export const getLiveTracking = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findOne({ 
+      where: { id, userId: req.user.id }
+    });
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (!order.deliveryPersonId || order.deliveryStatus === 'pending') {
+       return res.status(400).json({ message: "Order not picked up by driver yet." });
+    }
+
+    const { DeliveryPerson } = await import("../models/index.js");
+    const driver = await DeliveryPerson.findOne({ where: { userId: order.deliveryPersonId }});
+
+    if (!driver) return res.status(404).json({ message: "Driver details not found" });
+
+    res.status(200).json({
+       driverLocation: {
+          latitude: driver.currentLatitude,
+          longitude: driver.currentLongitude
+       },
+       deliveryOtp: order.deliveryOtp
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch tracking data", error: error.message });
   }
 };

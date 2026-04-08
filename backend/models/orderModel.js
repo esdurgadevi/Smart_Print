@@ -56,7 +56,51 @@ const orderModel = sequelize.define(
     },
     status: {
       type: DataTypes.ENUM("pending", "accepted", "rejected", "completed"),
-      defaultValue: "pending",},isReviewed: {type: DataTypes.BOOLEAN,defaultValue: false,},},
+      defaultValue: "pending",
+    },
+    isReviewed: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    // Delivery fields
+    deliveryType: {
+      type: DataTypes.ENUM("pickup", "delivery"),
+      defaultValue: "pickup",
+    },
+    deliveryAddress: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: "{ doorNo, street, city, pincode }",
+    },
+    deliveryLatitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    deliveryLongitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    deliveryPersonId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "users", // keeping it 'users' since user ID maps to delivery person
+        key: "id",
+      },
+    },
+    deliveryStatus: {
+      type: DataTypes.ENUM("pending", "assigned", "picked_up", "delivered"),
+      allowNull: true,
+    },
+    pickupOtp: {
+      type: DataTypes.STRING(6),
+      allowNull: true,
+    },
+    deliveryOtp: {
+      type: DataTypes.STRING(6),
+      allowNull: true,
+    },
+  },
   {
     tableName: "orders",
     timestamps: true,

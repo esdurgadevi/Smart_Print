@@ -1,4 +1,4 @@
-import { Shop, Service } from "../models/index.js";
+import { Shop, Service, Order } from "../models/index.js";
 import sequelize from "../config/db.js";
 
 // ====== SHOP ADMIN ENDPOINTS ======
@@ -158,6 +158,111 @@ export const updateService = async (req, res) => {
     res.status(200).json({ message: "Service updated successfully", service });
   } catch (error) {
     res.status(500).json({ message: "Error updating service", error: error.message });
+  }
+};
+
+// 3.8 Shop Analytics
+export const getShopAnalytics = async (req, res) => {
+  try {
+    const shop = await Shop.findOne({ where: { adminId: req.user.id } });
+    if (!shop) return res.status(404).json({ message: "Shop not found" });
+
+    const orders = await Order.findAll({
+      where: { shopId: shop.id, status: "completed" },
+      include: [{ model: Service, as: "service", attributes: ["serviceName"] }]
+    });
+
+    const totalOrders = orders.length;
+    let totalRevenue = 0;
+    let monthlyRevenue = 0;
+    let weeklyRevenue = 0;
+
+    const topServicesMap = {};
+    const areaMap = {};
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const sixMonthSeries = [];
+    for (let i = 5; i >= 0; i--) {
+       let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+       sixMonthSeries.push({ month: monthNames[d.getMonth()], earned: 0, year: d.getFullYear(), monthInt: d.getMonth() });
+    }
+
+    orders.forEach(order => {
+      const amt = Number(order.totalAmount) || 0;
+      totalRevenue += amt;
+
+      const orderDate = new Date(order.createdAt);
+      if (orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear) {
+        monthlyRevenue += amt;
+      }
+      if (orderDate >= startOfWeek) {
+        weeklyRevenue += amt;
+      }
+
+      const diffMonths = (now.getFullYear() - orderDate.getFullYear()) * 12 + (now.getMonth() - orderDate.getMonth());
+      if (diffMonths >= 0 && diffMonths <= 5) {
+         const bucket = sixMonthSeries.find(b => b.monthInt === orderDate.getMonth() && b.year === orderDate.getFullYear());
+         if (bucket) {
+            bucket.earned += amt;
+         }
+      }
+
+      // Top Services Mapping
+      if (order.service) { 
+        const sName = order.service.serviceName || "Unknown";
+        if (!topServicesMap[sName]) topServicesMap[sName] = { name: sName, count: 0, revenue: 0 };
+        topServicesMap[sName].count += 1;
+        topServicesMap[sName].revenue += amt;
+      }
+
+      // Geographical Area Mapping
+      if (order.deliveryAddress) {
+         let area = "Unknown";
+         if (typeof order.deliveryAddress === 'string') {
+            try {
+               const parsed = JSON.parse(order.deliveryAddress);
+               area = parsed.city || parsed.pincode || "Local";
+            } catch (e) {
+               area = order.deliveryAddress.substring(0, 20); 
+            }
+         } else if (typeof order.deliveryAddress === 'object') {
+            area = order.deliveryAddress.city || order.deliveryAddress.pincode || "Local";
+         }
+         
+         if (area && area !== "Unknown") {
+            if (!areaMap[area]) areaMap[area] = 0;
+            areaMap[area] += 1;
+         }
+      } else {
+         if (!areaMap["In-Store Pickup"]) areaMap["In-Store Pickup"] = 0;
+         areaMap["In-Store Pickup"] += 1;
+      }
+    });
+
+    const topServices = Object.values(topServicesMap).sort((a,b) => b.revenue - a.revenue).slice(0, 5);
+    const ordersByArea = Object.entries(areaMap).map(([area, count]) => ({ area, count })).sort((a,b) => b.count - a.count).slice(0, 6);
+
+    res.status(200).json({
+      analytics: {
+        totalOrders,
+        totalRevenue,
+        monthlyRevenue,
+        weeklyRevenue,
+        revenueTrend: sixMonthSeries,
+        topServices,
+        ordersByArea
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch shop analytics", error: error.message });
   }
 };
 

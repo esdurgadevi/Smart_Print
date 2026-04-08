@@ -8,6 +8,7 @@ import {
   updateService,
   getAllShops,
   getShopDetails,
+  getShopAnalytics,
 } from "../controllers/shopController.js";
 
 const router = express.Router();
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post("/", protect, createShop);
 router.put("/", protect, updateShop);
 router.get("/my-shop", protect, getMyShop);
+router.get("/analytics", protect, getShopAnalytics);
 router.post("/services", protect, addService);
 router.put("/services/:id", protect, updateService);
 

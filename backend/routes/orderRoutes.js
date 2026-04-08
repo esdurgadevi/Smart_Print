@@ -1,6 +1,6 @@
 import express from "express";
 import { protect } from "../middlewares/authMiddleware.js";
-import { uploadDocument, placeOrder, getMyOrders, placeBatchOrder, getShopOrders, updateOrderStatus } from "../controllers/orderController.js";
+import { uploadDocument, placeOrder, getMyOrders, placeBatchOrder, getShopOrders, updateOrderStatus, getLiveTracking } from "../controllers/orderController.js";
 import multer from "multer";
 
 const router = express.Router();
@@ -18,6 +18,7 @@ const upload = multer({ storage: storage });
 
 // ====== USER ROUTES ======
 router.get("/my-orders", protect, getMyOrders);
+router.get("/:id/live-tracking", protect, getLiveTracking);
 router.post("/upload", protect, upload.single('document'), uploadDocument);
 router.post("/batch", protect, placeBatchOrder);
 router.post("/", protect, placeOrder);

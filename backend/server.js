@@ -1,6 +1,6 @@
 import app from "./app.js";
 import sequelize from "./config/db.js";
-import { User, Shop, Service, Order, Feedback, Discount } from "./models/index.js";
+import { User, Shop, Service, Order, Feedback, Discount, DeliveryPerson } from "./models/index.js";
 
 const PORT = process.env.PORT || 5000;
 

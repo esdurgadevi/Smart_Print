@@ -68,7 +68,9 @@ export const registerUser = async (data) => {
 
   const hashedPassword = await bcrypt.hash(data.password, 10);
 
-  const validRole = data.role === "SHOP_ADMIN" ? "SHOP_ADMIN" : "USER";
+  let validRole = "USER";
+  if (data.role === "SHOP_ADMIN") validRole = "SHOP_ADMIN";
+  if (data.role === "DELIVERY_PERSON") validRole = "DELIVERY_PERSON";
 
   const user = await User.upsert({
     name: data.name,

@@ -4,6 +4,7 @@ import Service from "./serviceModel.js";
 import Order from "./orderModel.js";
 import Feedback from "./feedbackModel.js";
 import Discount from "./discountModel.js";
+import DeliveryPerson from "./deliveryPersonModel.js";
 
 // Define Associations
 
@@ -47,4 +48,12 @@ Discount.belongsTo(Shop, { foreignKey: "shopId", as: "shop" });
 Order.hasOne(Feedback, { foreignKey: "orderId", as: "feedback", onDelete: "CASCADE" });
 Feedback.belongsTo(Order, { foreignKey: "orderId", as: "order" });
 
-export { User, Shop, Service, Order, Feedback, Discount };
+// 11. User -> DeliveryPerson (1:1)
+User.hasOne(DeliveryPerson, { foreignKey: "userId", as: "deliveryProfile" });
+DeliveryPerson.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+// 12. DeliveryPerson -> Order (1:N)
+User.hasMany(Order, { foreignKey: "deliveryPersonId", as: "deliveryOrders" });
+Order.belongsTo(User, { foreignKey: "deliveryPersonId", as: "deliveryPerson" });
+
+export { User, Shop, Service, Order, Feedback, Discount, DeliveryPerson };
