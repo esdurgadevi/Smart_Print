@@ -48,6 +48,11 @@ export const updateOrderStatus = async (orderId, status) => {
   return response.data;
 };
 
+export const getLiveTracking = async (orderId) => {
+  const response = await api.get(`/${orderId}/live-tracking`);
+  return response.data;
+};
+
 export default {
   uploadDocument,
   placeOrder,
@@ -55,4 +60,5 @@ export default {
   getMyOrders,
   getShopOrders,
   updateOrderStatus,
+  getLiveTracking,
 };

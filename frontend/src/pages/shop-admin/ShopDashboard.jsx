@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import shopService from "../../services/shopService";
-import { Store, Plus, MapPin, Phone, Package, Edit, Trash2 } from "lucide-react";
+import { Store, Plus, MapPin, Package, Edit, Trash2, DollarSign, TrendingUp, Activity, ShoppingBag } from "lucide-react";
 
 const ShopDashboard = () => {
   const { user } = useAuth();
   const [shop, setShop] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isCreatingShop, setIsCreatingShop] = useState(false);
@@ -30,15 +31,30 @@ const ShopDashboard = () => {
   });
 
   useEffect(() => {
-    fetchMyShop();
+    fetchMyShopData();
   }, []);
 
-  const fetchMyShop = async () => {
+  const fetchMyShopData = async () => {
     try {
       setLoading(true);
       const data = await shopService.getMyShop();
       setShop(data.shop);
       setIsCreatingShop(false);
+      
+      try {
+        const analyticsData = await shopService.getShopAnalytics();
+        setAnalytics(analyticsData.analytics);
+      } catch (analyticsErr) {
+        console.error("Analytics fetch error:", analyticsErr);
+        // Default to zeroed array so it still renders the UI blocks
+        setAnalytics({
+          totalOrders: 0,
+          totalRevenue: 0,
+          monthlyRevenue: 0,
+          weeklyRevenue: 0,
+          revenueTrend: []
+        });
+      }
     } catch (err) {
       if (err.response?.status === 404) {
         setIsCreatingShop(true);
@@ -58,7 +74,7 @@ const ShopDashboard = () => {
         latitude: parseFloat(shopForm.latitude) || null,
         longitude: parseFloat(shopForm.longitude) || null,
       });
-      fetchMyShop();
+      fetchMyShopData();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create shop");
     }
@@ -73,7 +89,7 @@ const ShopDashboard = () => {
       });
       setIsAddingService(false);
       setServiceForm({ serviceName: "", description: "", price: "", imageUrl: "" });
-      fetchMyShop(); // Refresh to show new service
+      fetchMyShopData(); // Refresh to show new service
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add service");
     }
@@ -235,6 +251,77 @@ const ShopDashboard = () => {
           </div>
         </div>
       </div>
+
+      {analytics && (
+        <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+           {/* Left/Top: Stats Overview */}
+           <div className="lg:col-span-1 space-y-4">
+              <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-6 text-white shadow-lg shadow-orange-200 relative overflow-hidden">
+                <div className="relative z-10">
+                  <h3 className="text-orange-100 font-bold tracking-wide uppercase text-xs mb-1 flex items-center gap-2"><DollarSign className="h-4 w-4"/> Lifetime Revenue</h3>
+                  <div className="text-4xl font-black mb-1">₹{Number(analytics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</div>
+                </div>
+                <TrendingUp className="absolute -bottom-4 -right-4 h-32 w-32 text-white opacity-10 transform -rotate-12" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+                   <div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
+                      <ShoppingBag className="h-5 w-5 text-blue-500" />
+                   </div>
+                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Orders</p>
+                   <p className="text-xl font-black text-gray-900">{analytics.totalOrders}</p>
+                </div>
+                <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+                   <div className="h-10 w-10 bg-green-50 rounded-xl flex items-center justify-center mb-3">
+                      <TrendingUp className="h-5 w-5 text-green-500" />
+                   </div>
+                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">This Month</p>
+                   <p className="text-xl font-black text-gray-900">₹{Number(analytics.monthlyRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</p>
+                </div>
+              </div>
+           </div>
+
+           {/* Right: Trend Chart */}
+           <div className="lg:col-span-2 bg-white border border-gray-100 shadow-sm rounded-3xl p-6">
+              <div className="flex items-center justify-between mb-8 text-gray-900 border-b border-gray-50 pb-4">
+                 <h3 className="font-bold text-lg flex items-center gap-2"><Activity className="h-5 w-5 text-orange-500" /> 6-Month Revenue Tracking</h3>
+              </div>
+              
+              {analytics.revenueTrend && analytics.revenueTrend.length > 0 ? (
+                <div className="h-44 flex items-end justify-between gap-3">
+                  {analytics.revenueTrend.map((dataPoint, idx) => {
+                     const maxEarned = Math.max(...analytics.revenueTrend.map(d => d.earned), 100); 
+                     const heightPct = Math.max((dataPoint.earned / maxEarned) * 100, 5);
+                     
+                     return (
+                       <div key={idx} className="flex flex-col items-center flex-1 group">
+                         <div className="w-full flex justify-center mb-2">
+                           <div className="text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                             ₹{dataPoint.earned.toFixed(0)}
+                           </div>
+                         </div>
+                         <div className="w-full max-w-[40px] bg-gray-100 rounded-t-xl overflow-hidden relative flex-1 flex flex-col justify-end">
+                            <div 
+                              className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-xl transition-all duration-1000 ease-out" 
+                              style={{ height: `${heightPct}%` }}
+                            ></div>
+                         </div>
+                         <div className="mt-3 text-xs font-bold text-gray-500">
+                           {dataPoint.month}
+                         </div>
+                       </div>
+                     );
+                  })}
+                </div>
+              ) : (
+                <div className="h-44 flex items-center justify-center text-gray-400 font-medium italic">
+                  No historical revenue data available.
+                </div>
+              )}
+           </div>
+        </div>
+      )}
 
       {/* Add Service Section */}
       {isAddingService && (

@@ -23,13 +23,19 @@ import OTPVerification from "../components/auth/OTPVerification";
 // Dashboard Pages
 import UserDashboard from "../pages/user/UserDashboard";
 import ShopDetails from "../pages/user/ShopDetails";
+import UserProfile from "../pages/user/UserProfile";
 import UserOrders from "../pages/user/UserOrders";
 import CartPage from "../pages/user/CartPage";
 import ShopDashboard from "../pages/shop-admin/ShopDashboard";
 import ShopProfile from "../pages/shop-admin/ShopProfile";
 import PrintServices from "../pages/shop-admin/PrintServices";
 import ShopOrders from "../pages/shop-admin/ShopOrders";
+import ShopAnalytics from "../pages/shop-admin/ShopAnalytics";
 import AdminDashboard from "../pages/super-admin/AdminDashboard";
+
+// Delivery Pages
+import DeliveryLayout from "../layouts/DeliveryLayout";
+import DeliveryDashboard from "../pages/delivery/DeliveryDashboard";
 
 // NotFound
 import NotFound from "../pages/NotFound";
@@ -47,12 +53,14 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
       if (role === "super_admin") return userRole === "super_admin";
       if (role === "shop_admin") return userRole === "shop_admin" || userRole === "super_admin";
       if (role === "user") return ["user", "shop_admin", "super_admin"].includes(userRole);
+      if (role === "delivery_person") return userRole === "delivery_person" || userRole === "super_admin";
       return false;
     });
 
     if (!hasAccess) {
       if (userRole === "super_admin") return <Navigate to="/super-admin/dashboard" replace />;
       if (userRole === "shop_admin") return <Navigate to="/shop-admin/dashboard" replace />;
+      if (userRole === "delivery_person") return <Navigate to="/delivery/dashboard" replace />;
       return <Navigate to="/dashboard" replace />;
     }
   }
@@ -78,7 +86,7 @@ const routes = [
     ],
   },
 
-  // User Routes (Regular Users - role: USER)
+// User Routes (Regular Users - role: USER)
   {
     path: "/",
     element: (
@@ -90,6 +98,7 @@ const routes = [
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: <UserDashboard /> },
       { path: "dashboard/shop/:id", element: <ShopDetails /> },
+      { path: "profile", element: <UserProfile /> },
       { path: "my-orders", element: <UserOrders /> },
       { path: "cart", element: <CartPage /> },
     ],
@@ -109,6 +118,21 @@ const routes = [
       { path: "profile", element: <ShopProfile /> },
       { path: "services", element: <PrintServices /> },
       { path: "orders", element: <ShopOrders /> },
+      { path: "analytics", element: <ShopAnalytics /> },
+    ],
+  },
+
+  // Delivery Routes (role: DELIVERY_PERSON)
+  {
+    path: "/delivery",
+    element: (
+      <ProtectedRoute allowedRoles={["delivery_person"]}>
+        <DeliveryLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to="dashboard" replace /> },
+      { path: "dashboard", element: <DeliveryDashboard /> },
     ],
   },
 

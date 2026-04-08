@@ -107,7 +107,15 @@ const ShopOrders = () => {
                     <span className="text-2xl font-black text-orange-600">₹{Number(order.totalAmount).toFixed(2)}</span>
                   </div>
 
-                  <div className="space-y-2 w-full">
+                  {order.deliveryType === 'delivery' && order.pickupOtp && (
+                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg w-full text-center mt-2">
+                       <p className="text-xs text-orange-800 font-bold uppercase mb-1">Pickup OTP</p>
+                       <p className="text-2xl tracking-widest font-mono text-orange-600 font-black">{order.pickupOtp}</p>
+                       <p className="text-[10px] text-orange-600 mt-1 leading-tight">Share with Driver to dispatch</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 w-full mt-2">
                     {order.status === "pending" && (
                       <>
                         <button onClick={() => handleUpdateStatus(order.id, 'accepted')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-200 transition-all text-sm">

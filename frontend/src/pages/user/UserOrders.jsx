@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, FileText, Clock, ExternalLink, Store, Package, Star } from "lucide-react";
-import { getMyOrders } from "../../services/orderService";
+import { ShoppingBag, FileText, Clock, ExternalLink, Store, Package, Star, MapPin, Truck } from "lucide-react";
+import { getMyOrders, getLiveTracking } from "../../services/orderService";
 import FeedbackModal from "../../components/user/FeedbackModal";
 
 const UserOrders = () => {
@@ -11,6 +11,11 @@ const UserOrders = () => {
   const navigate = useNavigate();
 
   const [feedbackOrder, setFeedbackOrder] = useState(null);
+  
+  // Tracking State
+  const [trackingOrder, setTrackingOrder] = useState(null);
+  const [trackingData, setTrackingData] = useState(null);
+  const pollInterval = useRef(null);
 
   useEffect(() => {
     fetchOrders();
@@ -27,6 +32,37 @@ const UserOrders = () => {
       setLoading(false);
     }
   };
+
+  const startTracking = (order) => {
+    setTrackingOrder(order);
+    fetchTrackingData(order.id);
+    pollInterval.current = setInterval(() => {
+      fetchTrackingData(order.id);
+    }, 5000);
+  };
+
+  const stopTracking = () => {
+    setTrackingOrder(null);
+    setTrackingData(null);
+    if (pollInterval.current) {
+      clearInterval(pollInterval.current);
+    }
+  };
+
+  const fetchTrackingData = async (orderId) => {
+    try {
+      const data = await getLiveTracking(orderId);
+      setTrackingData(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
+  }, []);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -97,6 +133,13 @@ const UserOrders = () => {
                      <p className="text-sm text-gray-500 truncate max-w-[200px]">{order.service?.serviceName || "Unknown Service"}</p>
                    </div>
                  </div>
+                 
+                 {/* Show Delivery Status if applicable */}
+                 {order.deliveryType === 'delivery' && (
+                    <p className="text-xs font-bold text-orange-600 mt-2 bg-orange-50 inline-block px-2 py-1 rounded">
+                      Delivery: {order.deliveryStatus ? order.deliveryStatus.toUpperCase() : "PENDING"}
+                    </p>
+                 )}
                </div>
 
                <div className="p-6 bg-gray-50 flex-1">
@@ -125,6 +168,15 @@ const UserOrders = () => {
                     <span className="text-xl font-extrabold text-orange-600">₹{Number(order.totalAmount).toFixed(2)}</span>
                  </div>
 
+                 {order.deliveryType === 'delivery' && (order.deliveryStatus === 'assigned' || order.deliveryStatus === 'picked_up') && (
+                   <button 
+                     onClick={() => startTracking(order)}
+                     className="w-full mt-4 bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm"
+                   >
+                     <Truck className="h-4 w-4" /> Track Live Delivery
+                   </button>
+                 )}
+
                  {order.status === "completed" && !order.isReviewed && (
                    <button 
                      onClick={() => setFeedbackOrder(order)}
@@ -152,6 +204,51 @@ const UserOrders = () => {
           shopId={feedbackOrder.shopId}
           onSuccess={handleFeedbackSuccess}
         />
+      )}
+
+      {/* Tracking Modal */}
+      {trackingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={stopTracking} className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 font-bold p-2 bg-gray-100 rounded-full">
+              X
+            </button>
+            <div className="text-center mb-6">
+              <div className="h-16 w-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 relative">
+                <Truck className="h-8 w-8" />
+                <span className="absolute top-0 right-0 h-4 w-4 bg-green-500 border-2 border-white rounded-full animate-pulse"></span>
+              </div>
+              <h2 className="text-2xl font-black text-gray-900">Live Tracking</h2>
+              <p className="text-sm text-gray-500">Order #{trackingOrder.id.toString().padStart(4, '0')}</p>
+            </div>
+
+            {trackingData ? (
+               <div className="space-y-4">
+                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                   <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Driver Coordinates</p>
+                   <p className="font-mono text-sm text-gray-800">
+                     Lat: <span className="font-bold">{trackingData.driverLocation?.latitude?.toFixed(4) || "N/A"}</span><br/>
+                     Lng: <span className="font-bold">{trackingData.driverLocation?.longitude?.toFixed(4) || "N/A"}</span>
+                   </p>
+                   <p className="text-xs text-gray-400 mt-2 bg-white inline-block px-2 py-1 rounded shadow-sm border border-gray-200">Polling every 5s</p>
+                 </div>
+
+                 {trackingData.deliveryOtp && trackingOrder.deliveryStatus === 'picked_up' && (
+                   <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-center">
+                     <p className="text-xs text-orange-800 font-bold uppercase mb-1">Your Delivery OTP</p>
+                     <p className="text-3xl tracking-widest font-mono text-orange-600 font-black mb-1">{trackingData.deliveryOtp}</p>
+                     <p className="text-[10px] uppercase font-bold text-orange-600 leading-tight">Share this with driver upon arrival</p>
+                   </div>
+                 )}
+               </div>
+            ) : (
+               <div className="text-center py-8">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                 <p className="text-sm text-gray-500 mt-4">Pinging GPS satellite...</p>
+               </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

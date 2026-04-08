@@ -1,26 +1,32 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }) => {
-  const [cartItems, setCartItems] = useState(() => {
-    const savedCart = localStorage.getItem("cartItems");
-    return savedCart ? JSON.parse(savedCart) : [];
-  });
-  
-  // This helps enforce that we only build a cart for one shop at a time to prevent complex shipping/pickup mismatch.
-  const [cartShopId, setCartShopId] = useState(() => {
-    const savedShopId = localStorage.getItem("cartShopId");
-    return savedShopId ? JSON.parse(savedShopId) : null;
-  });
+  const { user } = useAuth();
+
+  const getItemsKey = () => `cartItems_${user ? user.id : 'guest'}`;
+  const getShopKey = () => `cartShopId_${user ? user.id : 'guest'}`;
+
+  const [cartItems, setCartItems] = useState([]);
+  const [cartShopId, setCartShopId] = useState(null);
+
+  // Re-hydrate the cart whenever the user swaps/logs out
+  useEffect(() => {
+    const savedCart = localStorage.getItem(getItemsKey());
+    const savedShop = localStorage.getItem(getShopKey());
+    setCartItems(savedCart ? JSON.parse(savedCart) : []);
+    setCartShopId(savedShop ? JSON.parse(savedShop) : null);
+  }, [user]);
 
   // Sync to localStorage whenever cart changes
   useEffect(() => {
-    localStorage.setItem("cartItems", JSON.stringify(cartItems));
-    localStorage.setItem("cartShopId", JSON.stringify(cartShopId));
-  }, [cartItems, cartShopId]);
+    localStorage.setItem(getItemsKey(), JSON.stringify(cartItems));
+    localStorage.setItem(getShopKey(), JSON.stringify(cartShopId));
+  }, [cartItems, cartShopId, user]);
 
   const addToCart = (item) => {
     // Check if adding from a different shop, if so clear cart or throw warning

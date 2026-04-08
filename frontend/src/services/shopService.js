@@ -74,6 +74,11 @@ export const getShopDetails = async (shopId) => {
   return response.data;
 };
 
+export const getShopAnalytics = async () => {
+  const response = await api.get(`/analytics`);
+  return response.data;
+};
+
 export default {
   createShop,
   updateShop,
@@ -82,4 +87,5 @@ export default {
   updateService,
   getAllShops,
   getShopDetails,
+  getShopAnalytics,
 };

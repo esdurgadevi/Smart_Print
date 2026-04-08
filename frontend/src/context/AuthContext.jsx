@@ -35,6 +35,8 @@ export const AuthProvider = ({ children }) => {
         navigate("/super-admin/dashboard");
       } else if (role === "shop_admin") {
         navigate("/shop-admin/dashboard");
+      } else if (role === "delivery_person") {
+        navigate("/delivery/dashboard");
       } else {
         navigate("/dashboard");
       }
@@ -55,6 +57,8 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       clearUserData();
       navigate("/");
+      // Force a reload so all contexts drop their state
+      window.location.reload();
     }
   };
 

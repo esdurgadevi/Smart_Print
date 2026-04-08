@@ -116,7 +116,7 @@ const Register = () => {
 
           <div className="pt-2">
             <label className="block text-sm font-medium text-gray-700 mb-3">I want to...</label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label 
                 className={`flex flex-col items-center justify-center p-4 border rounded-xl cursor-pointer transition-all ${
                   formData.role === "USER" ? "bg-orange-50 border-orange-500 text-orange-700" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
@@ -130,8 +130,8 @@ const Register = () => {
                   onChange={() => setFormData({ ...formData, role: "USER" })}
                   className="sr-only" 
                 />
-                <span className="font-semibold">Order Prints</span>
-                <span className="text-xs mt-1 text-center opacity-80">Customer Account</span>
+                <span className="font-semibold text-center">Order Prints</span>
+                <span className="text-xs mt-1 text-center opacity-80">Customer</span>
               </label>
 
               <label 
@@ -147,8 +147,25 @@ const Register = () => {
                   onChange={() => setFormData({ ...formData, role: "SHOP_ADMIN" })}
                   className="sr-only" 
                 />
-                <span className="font-semibold">Become a Seller</span>
-                <span className="text-xs mt-1 text-center opacity-80">Shop Admin Account</span>
+                <span className="font-semibold text-center">Become a Seller</span>
+                <span className="text-xs mt-1 text-center opacity-80">Shop Admin</span>
+              </label>
+
+              <label 
+                className={`flex flex-col items-center justify-center p-4 border rounded-xl cursor-pointer transition-all ${
+                  formData.role === "DELIVERY_PERSON" ? "bg-orange-50 border-orange-500 text-orange-700" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <input 
+                  type="radio" 
+                  name="role" 
+                  value="DELIVERY_PERSON" 
+                  checked={formData.role === "DELIVERY_PERSON"}
+                  onChange={() => setFormData({ ...formData, role: "DELIVERY_PERSON" })}
+                  className="sr-only" 
+                />
+                <span className="font-semibold text-center">Drive & Deliver</span>
+                <span className="text-xs mt-1 text-center opacity-80">Delivery Partner</span>
               </label>
             </div>
           </div>
