@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import shopService from "../../services/shopService";
-import { Printer, Plus, Edit, Trash2, Image as ImageIcon, X, Save, IndianRupee } from "lucide-react";
+import inventoryService from "../../services/inventoryService";
+import { Printer, Plus, Edit, Trash2, Image as ImageIcon, X, Save, IndianRupee, Box, Trash } from "lucide-react";
 
 const PrintServices = () => {
   const [services, setServices] = useState([]);
@@ -15,7 +16,9 @@ const PrintServices = () => {
     description: "",
     price: "",
     imageUrl: "",
+    inventoryLinks: [] // { inventoryId, quantityPerUnit }
   });
+  const [inventory, setInventory] = useState([]);
 
   useEffect(() => {
     fetchServices();
@@ -27,6 +30,12 @@ const PrintServices = () => {
       const data = await shopService.getMyShop();
       if (data.shop && data.shop.services) {
         setServices(data.shop.services);
+      }
+      
+      // Fetch inventory for linking
+      const invData = await inventoryService.getInventory();
+      if (invData.inventory) {
+        setInventory(invData.inventory);
       }
     } catch (err) {
       if (err.response?.status === 404) {
@@ -46,12 +55,20 @@ const PrintServices = () => {
 
   const handleEditClick = (service) => {
     setEditingId(service.id);
+    
+    // Map existing inventory links if they exist
+    const existingLinks = service.inventoryLinks || [];
+
     setFormData({
       serviceName: service.serviceName || "",
       description: service.description || "",
       price: service.price || "",
       imageUrl: service.imageUrl || "",
       isActive: service.isActive !== false,
+      inventoryLinks: existingLinks.map(l => ({ 
+        inventoryId: l.inventoryId, 
+        quantityPerUnit: l.quantityPerUnit 
+      })),
     });
     setIsAdding(true);
     setError("");
@@ -60,7 +77,7 @@ const PrintServices = () => {
   const handleCancel = () => {
     setIsAdding(false);
     setEditingId(null);
-    setFormData({ serviceName: "", description: "", price: "", imageUrl: "" });
+    setFormData({ serviceName: "", description: "", price: "", imageUrl: "", inventoryLinks: [] });
   };
 
   const handleSubmit = async (e) => {
@@ -74,10 +91,19 @@ const PrintServices = () => {
       setSaving(true);
       setError("");
 
+      const submissionData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        inventoryLinks: formData.inventoryLinks.map(link => ({
+          inventoryId: parseInt(link.inventoryId),
+          quantityPerUnit: parseFloat(link.quantityPerUnit)
+        }))
+      };
+
       if (editingId) {
-        await shopService.updateService(editingId, formData);
+        await shopService.updateService(editingId, submissionData);
       } else {
-        await shopService.addService(formData);
+        await shopService.addService(submissionData);
       }
 
       // Reset form & hide add
@@ -89,6 +115,28 @@ const PrintServices = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddInventoryLink = () => {
+    setFormData(prev => ({
+      ...prev,
+      inventoryLinks: [...prev.inventoryLinks, { inventoryId: "", quantityPerUnit: 1 }]
+    }));
+  };
+
+  const handleRemoveInventoryLink = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      inventoryLinks: prev.inventoryLinks.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleInventoryLinkChange = (index, field, value) => {
+    setFormData(prev => {
+      const newLinks = [...prev.inventoryLinks];
+      newLinks[index] = { ...newLinks[index], [field]: value };
+      return { ...prev, inventoryLinks: newLinks };
+    });
   };
 
   if (loading) {
@@ -113,7 +161,12 @@ const PrintServices = () => {
         </div>
         {!isAdding && (
           <button
-            onClick={() => { setIsAdding(true); setEditingId(null); setFormData({ serviceName: "", description: "", price: "", imageUrl: "" }); setError(""); }}
+            onClick={() => { 
+                setIsAdding(true); 
+                setEditingId(null); 
+                setFormData({ serviceName: "", description: "", price: "", imageUrl: "", inventoryLinks: [] }); 
+                setError(""); 
+            }}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-orange-200 active:scale-[0.98]"
           >
             <Plus className="h-5 w-5" /> Add New Service
@@ -207,6 +260,7 @@ const PrintServices = () => {
                   />
                 </div>
               </div>
+
               {editingId && (
                 <div className="md:col-span-2 flex items-center gap-2 mt-2">
                   <input
@@ -222,6 +276,52 @@ const PrintServices = () => {
                   </label>
                 </div>
               )}
+              
+              {/* Inventory Linking UI */}
+              <div className="md:col-span-2 mt-4 space-y-4 pt-6 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <Box className="h-4 w-4 text-orange-500" />
+                      Link Inventory Consumables
+                  </h3>
+                  <button 
+                    type="button" onClick={handleAddInventoryLink}
+                    className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-all flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Add Item
+                  </button>
+                </div>
+                
+                {formData.inventoryLinks.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 font-medium italic">No inventory products linked to this service usage.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {formData.inventoryLinks.map((link, index) => (
+                      <div key={index} className="flex gap-2 items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                          <select 
+                            value={link.inventoryId}
+                            onChange={(e) => handleInventoryLinkChange(index, "inventoryId", e.target.value)}
+                            required
+                            className="flex-1 p-2 rounded-lg border border-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 font-medium"
+                          >
+                            <option value="">Select Item...</option>
+                            {inventory.map(item => (
+                              <option key={item.id} value={item.id}>{item.productName} (Stock: {item.stockCount})</option>
+                            ))}
+                          </select>
+                          <input 
+                            type="number" step="any" min="0.001"
+                            placeholder="Qty" required
+                            value={link.quantityPerUnit}
+                            onChange={(e) => handleInventoryLinkChange(index, "quantityPerUnit", e.target.value)}
+                            className="w-24 p-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 font-medium"
+                          />
+                          <button type="button" onClick={() => handleRemoveInventoryLink(index)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash className="h-4 w-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {error && isAdding && (
