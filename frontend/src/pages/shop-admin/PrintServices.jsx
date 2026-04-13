@@ -69,11 +69,11 @@ const PrintServices = () => {
       setError("Service Name and Price are required.");
       return;
     }
-    
+
     try {
       setSaving(true);
       setError("");
-      
+
       if (editingId) {
         await shopService.updateService(editingId, formData);
       } else {
@@ -101,7 +101,7 @@ const PrintServices = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6 animate-in fade-in duration-500">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -112,7 +112,7 @@ const PrintServices = () => {
           <p className="text-gray-500 mt-2">Manage all the print services you offer to customers.</p>
         </div>
         {!isAdding && (
-          <button 
+          <button
             onClick={() => { setIsAdding(true); setEditingId(null); setFormData({ serviceName: "", description: "", price: "", imageUrl: "" }); setError(""); }}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-orange-200 active:scale-[0.98]"
           >
@@ -136,17 +136,17 @@ const PrintServices = () => {
               <X className="h-5 w-5" />
             </button>
           </div>
-          
+
           <form onSubmit={handleSubmit} className="p-8">
             <div className="grid md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="text-sm font-semibold text-gray-700">Service Name *</label>
-                <select 
-                  name="serviceName" 
-                  value={formData.serviceName} 
-                  onChange={handleInputChange} 
+                <select
+                  name="serviceName"
+                  value={formData.serviceName}
+                  onChange={handleInputChange}
                   required
-                  className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all bg-white text-gray-900 appearance-none" 
+                  className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all bg-white text-gray-900 appearance-none"
                 >
                   <option value="" disabled>Select a Print Service</option>
                   <option value="Black & White Print">Black & White Print</option>
@@ -159,16 +159,16 @@ const PrintServices = () => {
                   <option value="Photo Print">Photo Print</option>
                 </select>
               </div>
-              
+
               <div className="md:col-span-2">
                 <label className="text-sm font-semibold text-gray-700">Description</label>
-                <textarea 
-                  name="description" 
-                  rows="3" 
+                <textarea
+                  name="description"
+                  rows="3"
                   placeholder="Describe your service (paper quality, sides, binding options, etc.)"
-                  value={formData.description} 
-                  onChange={handleInputChange} 
-                  className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400 resize-none" 
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400 resize-none"
                 />
               </div>
 
@@ -178,15 +178,15 @@ const PrintServices = () => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <IndianRupee className="h-4 w-4 text-gray-400" />
                   </div>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     step="0.01"
-                    name="price" 
+                    name="price"
                     placeholder="2.50"
-                    value={formData.price} 
-                    onChange={handleInputChange} 
+                    value={formData.price}
+                    onChange={handleInputChange}
                     required
-                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400" 
+                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400"
                   />
                 </div>
               </div>
@@ -197,13 +197,13 @@ const PrintServices = () => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <ImageIcon className="h-4 w-4 text-gray-400" />
                   </div>
-                  <input 
-                    type="text" 
-                    name="imageUrl" 
+                  <input
+                    type="text"
+                    name="imageUrl"
                     placeholder="https://example.com/image.jpg"
-                    value={formData.imageUrl} 
-                    onChange={handleInputChange} 
-                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400" 
+                    value={formData.imageUrl}
+                    onChange={handleInputChange}
+                    className="w-full pl-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400"
                   />
                 </div>
               </div>
@@ -231,14 +231,14 @@ const PrintServices = () => {
             )}
 
             <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-100">
-              <button 
+              <button
                 type="button"
                 onClick={handleCancel}
                 className="px-6 py-3 rounded-xl font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all focus:outline-none"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 type="submit"
                 disabled={saving}
                 className="px-8 py-3 rounded-xl font-medium text-white bg-orange-500 hover:bg-orange-600 transition-all flex items-center gap-2 shadow-lg shadow-orange-200 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
@@ -263,7 +263,7 @@ const PrintServices = () => {
           <p className="text-gray-500 max-w-sm mx-auto mb-6">
             You haven't added any print services to your shop. Add your first service to start receiving orders.
           </p>
-          <button 
+          <button
             onClick={() => setIsAdding(true)}
             className="bg-gray-900 hover:bg-black text-white px-6 py-3 rounded-xl font-medium inline-flex items-center gap-2 transition-all"
           >
@@ -276,10 +276,10 @@ const PrintServices = () => {
             <div key={service.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow group">
               {service.imageUrl ? (
                 <div className="h-48 w-full bg-gray-100 overflow-hidden relative">
-                  <img 
-                    src={service.imageUrl} 
-                    alt={service.serviceName} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  <img
+                    src={service.imageUrl}
+                    alt={service.serviceName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
                   />
                   {!service.isActive && (
@@ -298,7 +298,7 @@ const PrintServices = () => {
                   )}
                 </div>
               )}
-              
+
               <div className="p-6">
                 <div className="flex justify-between items-start mb-2 gap-4">
                   <h3 className="font-bold text-lg text-gray-900 line-clamp-2 leading-tight">{service.serviceName}</h3>
@@ -306,22 +306,22 @@ const PrintServices = () => {
                     ₹{Number(service.price).toFixed(2)}
                   </div>
                 </div>
-                
+
                 <p className="text-gray-500 text-sm line-clamp-3 mb-6 min-h-[60px]">
                   {service.description || "No description provided."}
                 </p>
-                
+
                 <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-                  <button 
+                  <button
                     onClick={() => handleEditClick(service)}
                     className="flex-1 justify-center bg-gray-50 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-colors text-sm"
                   >
                     <Edit className="h-4 w-4" /> Edit
                   </button>
                   {/* Delete button stub (backend doesn't support delete yet) */}
-                  <button 
-                     title="Delete not implemented yet"
-                     className="p-2.5 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  <button
+                    title="Delete not implemented yet"
+                    className="p-2.5 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

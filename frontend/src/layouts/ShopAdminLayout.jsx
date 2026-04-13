@@ -1,16 +1,17 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { 
-  LayoutDashboard, 
-  Store, 
-  ShoppingBag, 
+import {
+  LayoutDashboard,
+  Store,
+  ShoppingBag,
   Printer,
   BarChart3,
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  Package
 } from "lucide-react";
 
 const ShopAdminLayout = () => {
@@ -28,6 +29,7 @@ const ShopAdminLayout = () => {
     { to: "/shop-admin/profile", icon: Store, label: "Shop Profile" },
     { to: "/shop-admin/orders", icon: ShoppingBag, label: "Orders" },
     { to: "/shop-admin/services", icon: Printer, label: "Services" },
+    { to: "/shop-admin/inventory", icon: Package, label: "Inventory" },
     { to: "/shop-admin/analytics", icon: BarChart3, label: "Analytics" },
     { to: "/shop-admin/settings", icon: Settings, label: "Settings" },
   ];
@@ -48,10 +50,9 @@ const ShopAdminLayout = () => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors ${
-                  isActive
-                    ? "bg-orange-50 text-orange-600"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-orange-600"
+                `flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors ${isActive
+                  ? "bg-orange-50 text-orange-600"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-orange-600"
                 }`
               }
             >

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import shopService from "../../services/shopService";
-import { Store, Plus, MapPin, Package, Edit, Trash2, DollarSign, TrendingUp, Activity, ShoppingBag } from "lucide-react";
+import inventoryService from "../../services/inventoryService";
+import { Store, Plus, MapPin, Package, Edit, Trash2, DollarSign, TrendingUp, Activity, ShoppingBag, AlertTriangle, Box, Trash } from "lucide-react";
 
 const ShopDashboard = () => {
   const { user } = useAuth();
@@ -28,7 +29,10 @@ const ShopDashboard = () => {
     description: "",
     price: "",
     imageUrl: "",
+    inventoryLinks: [] // { inventoryId, quantityPerUnit }
   });
+  const [inventory, setInventory] = useState([]);
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
 
   useEffect(() => {
     fetchMyShopData();
@@ -40,12 +44,22 @@ const ShopDashboard = () => {
       const data = await shopService.getMyShop();
       setShop(data.shop);
       setIsCreatingShop(false);
-      
+
       try {
-        const analyticsData = await shopService.getShopAnalytics();
+        const [analyticsData, inventoryData] = await Promise.all([
+          shopService.getShopAnalytics(),
+          inventoryService.getInventory()
+        ]);
+
         setAnalytics(analyticsData.analytics);
+
+        if (inventoryData.inventory) {
+          setInventory(inventoryData.inventory);
+          const alerts = inventoryData.inventory.filter(item => item.stockCount <= item.minStockAlertCount);
+          setLowStockAlerts(alerts);
+        }
       } catch (analyticsErr) {
-        console.error("Analytics fetch error:", analyticsErr);
+        console.error("Dashboard supplementary fetch error:", analyticsErr);
         // Default to zeroed array so it still renders the UI blocks
         setAnalytics({
           totalOrders: 0,
@@ -80,15 +94,41 @@ const ShopDashboard = () => {
     }
   };
 
+  const handleAddInventoryLink = () => {
+    setServiceForm(prev => ({
+      ...prev,
+      inventoryLinks: [...prev.inventoryLinks, { inventoryId: "", quantityPerUnit: 1 }]
+    }));
+  };
+
+  const handleRemoveInventoryLink = (index) => {
+    setServiceForm(prev => ({
+      ...prev,
+      inventoryLinks: prev.inventoryLinks.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleInventoryLinkChange = (index, field, value) => {
+    setServiceForm(prev => {
+      const newLinks = [...prev.inventoryLinks];
+      newLinks[index] = { ...newLinks[index], [field]: value };
+      return { ...prev, inventoryLinks: newLinks };
+    });
+  };
+
   const handleAddService = async (e) => {
     e.preventDefault();
     try {
       await shopService.addService({
         ...serviceForm,
         price: parseFloat(serviceForm.price),
+        inventoryLinks: serviceForm.inventoryLinks.map(link => ({
+          inventoryId: parseInt(link.inventoryId),
+          quantityPerUnit: parseFloat(link.quantityPerUnit)
+        }))
       });
       setIsAddingService(false);
-      setServiceForm({ serviceName: "", description: "", price: "", imageUrl: "" });
+      setServiceForm({ serviceName: "", description: "", price: "", imageUrl: "", inventoryLinks: [] });
       fetchMyShopData(); // Refresh to show new service
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add service");
@@ -113,10 +153,10 @@ const ShopDashboard = () => {
             <h1 className="text-3xl font-bold">Set Up Your Print Shop</h1>
             <p className="mt-2 text-orange-100">Add your shop details to start receiving orders</p>
           </div>
-          
+
           <div className="p-8">
             {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6">{error}</div>}
-            
+
             <form onSubmit={handleCreateShop} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
@@ -230,15 +270,15 @@ const ShopDashboard = () => {
                 </p>
               </div>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => setIsAddingService(!isAddingService)}
               className="bg-gray-900 hover:bg-black text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-md active:scale-[0.98]"
             >
               {isAddingService ? 'Cancel' : <><Plus className="h-5 w-5" /> Add New Service</>}
             </button>
           </div>
-          
+
           <div className="mt-8 grid md:grid-cols-2 gap-4 text-gray-600">
             <p className="flex items-start gap-3">
               <Store className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
@@ -252,74 +292,94 @@ const ShopDashboard = () => {
         </div>
       </div>
 
+      {/* Low Stock Alerts */}
+      {lowStockAlerts.length > 0 && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-5">
+            <div className="h-14 w-14 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 shadow-sm">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-red-900 leading-tight">Attention: Low Stock Items</h3>
+              <p className="text-red-600/80 text-sm font-medium">
+                {lowStockAlerts.length} product(s) are below the minimum stock level.
+              </p>
+            </div>
+          </div>
+          <a href="/shop-admin/inventory" className="w-full md:w-auto px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-700 transition-all shadow-lg shadow-red-200">
+            <Package className="h-4 w-4" /> Manage Stock
+          </a>
+        </div>
+      )}
+
       {analytics && (
         <div className="grid lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-           {/* Left/Top: Stats Overview */}
-           <div className="lg:col-span-1 space-y-4">
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-6 text-white shadow-lg shadow-orange-200 relative overflow-hidden">
-                <div className="relative z-10">
-                  <h3 className="text-orange-100 font-bold tracking-wide uppercase text-xs mb-1 flex items-center gap-2"><DollarSign className="h-4 w-4"/> Lifetime Revenue</h3>
-                  <div className="text-4xl font-black mb-1">₹{Number(analytics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</div>
-                </div>
-                <TrendingUp className="absolute -bottom-4 -right-4 h-32 w-32 text-white opacity-10 transform -rotate-12" />
+          {/* Left/Top: Stats Overview */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-6 text-white shadow-lg shadow-orange-200 relative overflow-hidden">
+              <div className="relative z-10">
+                <h3 className="text-orange-100 font-bold tracking-wide uppercase text-xs mb-1 flex items-center gap-2"><DollarSign className="h-4 w-4" /> Lifetime Revenue</h3>
+                <div className="text-4xl font-black mb-1">₹{Number(analytics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
-                   <div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
-                      <ShoppingBag className="h-5 w-5 text-blue-500" />
-                   </div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Orders</p>
-                   <p className="text-xl font-black text-gray-900">{analytics.totalOrders}</p>
-                </div>
-                <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
-                   <div className="h-10 w-10 bg-green-50 rounded-xl flex items-center justify-center mb-3">
-                      <TrendingUp className="h-5 w-5 text-green-500" />
-                   </div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">This Month</p>
-                   <p className="text-xl font-black text-gray-900">₹{Number(analytics.monthlyRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</p>
-                </div>
-              </div>
-           </div>
+              <TrendingUp className="absolute -bottom-4 -right-4 h-32 w-32 text-white opacity-10 transform -rotate-12" />
+            </div>
 
-           {/* Right: Trend Chart */}
-           <div className="lg:col-span-2 bg-white border border-gray-100 shadow-sm rounded-3xl p-6">
-              <div className="flex items-center justify-between mb-8 text-gray-900 border-b border-gray-50 pb-4">
-                 <h3 className="font-bold text-lg flex items-center gap-2"><Activity className="h-5 w-5 text-orange-500" /> 6-Month Revenue Tracking</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+                <div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
+                  <ShoppingBag className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Orders</p>
+                <p className="text-xl font-black text-gray-900">{analytics.totalOrders}</p>
               </div>
-              
-              {analytics.revenueTrend && analytics.revenueTrend.length > 0 ? (
-                <div className="h-44 flex items-end justify-between gap-3">
-                  {analytics.revenueTrend.map((dataPoint, idx) => {
-                     const maxEarned = Math.max(...analytics.revenueTrend.map(d => d.earned), 100); 
-                     const heightPct = Math.max((dataPoint.earned / maxEarned) * 100, 5);
-                     
-                     return (
-                       <div key={idx} className="flex flex-col items-center flex-1 group">
-                         <div className="w-full flex justify-center mb-2">
-                           <div className="text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                             ₹{dataPoint.earned.toFixed(0)}
-                           </div>
-                         </div>
-                         <div className="w-full max-w-[40px] bg-gray-100 rounded-t-xl overflow-hidden relative flex-1 flex flex-col justify-end">
-                            <div 
-                              className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-xl transition-all duration-1000 ease-out" 
-                              style={{ height: `${heightPct}%` }}
-                            ></div>
-                         </div>
-                         <div className="mt-3 text-xs font-bold text-gray-500">
-                           {dataPoint.month}
-                         </div>
-                       </div>
-                     );
-                  })}
+              <div className="bg-white border border-gray-100 shadow-sm rounded-3xl p-5">
+                <div className="h-10 w-10 bg-green-50 rounded-xl flex items-center justify-center mb-3">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
                 </div>
-              ) : (
-                <div className="h-44 flex items-center justify-center text-gray-400 font-medium italic">
-                  No historical revenue data available.
-                </div>
-              )}
-           </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">This Month</p>
+                <p className="text-xl font-black text-gray-900">₹{Number(analytics.monthlyRevenue).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Trend Chart */}
+          <div className="lg:col-span-2 bg-white border border-gray-100 shadow-sm rounded-3xl p-6">
+            <div className="flex items-center justify-between mb-8 text-gray-900 border-b border-gray-50 pb-4">
+              <h3 className="font-bold text-lg flex items-center gap-2"><Activity className="h-5 w-5 text-orange-500" /> 6-Month Revenue Tracking</h3>
+            </div>
+
+            {analytics.revenueTrend && analytics.revenueTrend.length > 0 ? (
+              <div className="h-44 flex items-end justify-between gap-3">
+                {analytics.revenueTrend.map((dataPoint, idx) => {
+                  const maxEarned = Math.max(...analytics.revenueTrend.map(d => d.earned), 100);
+                  const heightPct = Math.max((dataPoint.earned / maxEarned) * 100, 5);
+
+                  return (
+                    <div key={idx} className="flex flex-col items-center flex-1 group">
+                      <div className="w-full flex justify-center mb-2">
+                        <div className="text-[10px] font-bold text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          ₹{dataPoint.earned.toFixed(0)}
+                        </div>
+                      </div>
+                      <div className="w-full max-w-[40px] bg-gray-100 rounded-t-xl overflow-hidden relative flex-1 flex flex-col justify-end">
+                        <div
+                          className="w-full bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-xl transition-all duration-1000 ease-out"
+                          style={{ height: `${heightPct}%` }}
+                        ></div>
+                      </div>
+                      <div className="mt-3 text-xs font-bold text-gray-500">
+                        {dataPoint.month}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-44 flex items-center justify-center text-gray-400 font-medium italic">
+                No historical revenue data available.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -375,6 +435,52 @@ const ShopDashboard = () => {
                 placeholder="https://example.com/service-image.png"
               />
             </div>
+
+            {/* Inventory Linking UI */}
+            <div className="md:col-span-2 mt-4 space-y-4 pt-6 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Box className="h-4 w-4 text-orange-500" />
+                  Link Inventory Consumables
+                </h3>
+                <button
+                  type="button" onClick={handleAddInventoryLink}
+                  className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-all flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" /> Add Item
+                </button>
+              </div>
+
+              {serviceForm.inventoryLinks.length === 0 ? (
+                <p className="text-[11px] text-gray-400 font-medium italic">No inventory products linked to this service.</p>
+              ) : (
+                <div className="space-y-3">
+                  {serviceForm.inventoryLinks.map((link, index) => (
+                    <div key={index} className="flex gap-2 items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      <select
+                        value={link.inventoryId}
+                        onChange={(e) => handleInventoryLinkChange(index, "inventoryId", e.target.value)}
+                        required
+                        className="flex-1 p-2 rounded-lg border border-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 font-medium"
+                      >
+                        <option value="">Select Item...</option>
+                        {inventory.map(item => (
+                          <option key={item.id} value={item.id}>{item.productName} (Stock: {item.stockCount})</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number" step="0.01" min="0.001"
+                        placeholder="Qty" required
+                        value={link.quantityPerUnit}
+                        onChange={(e) => handleInventoryLinkChange(index, "quantityPerUnit", e.target.value)}
+                        className="w-24 p-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 font-medium"
+                      />
+                      <button type="button" onClick={() => handleRemoveInventoryLink(index)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2 flex justify-end gap-3 mt-2">
               <button
                 type="button"
@@ -399,7 +505,7 @@ const ShopDashboard = () => {
         <Package className="h-6 w-6 text-orange-500" />
         Your Services ({shop?.services?.length || 0})
       </h2>
-      
+
       {shop?.services?.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
           <Package className="h-16 w-16 mx-auto mb-4 opacity-20" />

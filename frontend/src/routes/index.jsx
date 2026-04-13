@@ -30,6 +30,7 @@ import ShopDashboard from "../pages/shop-admin/ShopDashboard";
 import ShopProfile from "../pages/shop-admin/ShopProfile";
 import PrintServices from "../pages/shop-admin/PrintServices";
 import ShopOrders from "../pages/shop-admin/ShopOrders";
+import Inventory from "../pages/shop-admin/Inventory";
 import ShopAnalytics from "../pages/shop-admin/ShopAnalytics";
 import AdminDashboard from "../pages/super-admin/AdminDashboard";
 
@@ -86,7 +87,7 @@ const routes = [
     ],
   },
 
-// User Routes (Regular Users - role: USER)
+  // User Routes (Regular Users - role: USER)
   {
     path: "/",
     element: (
@@ -118,6 +119,7 @@ const routes = [
       { path: "profile", element: <ShopProfile /> },
       { path: "services", element: <PrintServices /> },
       { path: "orders", element: <ShopOrders /> },
+      { path: "inventory", element: <Inventory /> },
       { path: "analytics", element: <ShopAnalytics /> },
     ],
   },
