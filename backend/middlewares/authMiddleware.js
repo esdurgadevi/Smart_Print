@@ -1,10 +1,12 @@
 import jwt from "jsonwebtoken";
 
-export const protect = (req, res, next) => {
-  console.log("SECRET:", process.env.JWT_SECRET);
+import { User } from "../models/index.js";
+
+export const protect = async (req, res, next) => {
   try {
     let token;
 
+    // ✅ Extract token
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
@@ -12,18 +14,36 @@ export const protect = (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
     }
 
+    // ❌ No token
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
+    // ✅ Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = decoded;
+    // ✅ Get full user from DB (BEST PRACTICE)
+    const user = await User.findByPk(decoded.id);
+    console.log("DECODED:", decoded);
+    console.log("USER FROM DB:", user);
 
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // ✅ Attach user
+    req.user = user;
+
+    // ✅ Continue only if everything is valid
     next();
+
   } catch (error) {
-    console.log("ERROR:", error.message);
-    return res.status(401).json({ message: "Unauthorized" });
+    console.log("AUTH ERROR:", error.message);
+
+    return res.status(401).json({
+      message: "Invalid token",
+      error: error.message
+    });
   }
 };
 export const authorizeRoles = (...roles) => {

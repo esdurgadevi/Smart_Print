@@ -1,4 +1,4 @@
-import { Shop, Service, Order } from "../models/index.js";
+import { Shop, Service, Order, ServiceInventory } from "../models/index.js";
 import sequelize from "../config/db.js";
 
 // ====== SHOP ADMIN ENDPOINTS ======
@@ -10,7 +10,7 @@ export const createShop = async (req, res) => {
       return res.status(403).json({ message: "Only Shop Admins can create a shop" });
     }
 
-    const { 
+    const {
       shopName, description, logoUrl, address,
       addressNo, street, location, city, pincode, fullAddress,
       phone, email, whatsapp,
@@ -72,7 +72,7 @@ export const updateShop = async (req, res) => {
       return res.status(404).json({ message: "Shop not found. Please create one first." });
     }
 
-    const { 
+    const {
       shopName, description, logoUrl, address,
       addressNo, street, location, city, pincode, fullAddress,
       phone, email, whatsapp,
@@ -125,6 +125,16 @@ export const addService = async (req, res) => {
       imageUrl,
     });
 
+    // Handle initial inventory linkage
+    if (req.body.inventoryLinks && Array.isArray(req.body.inventoryLinks)) {
+      const links = req.body.inventoryLinks.map(link => ({
+        serviceId: newService.id,
+        inventoryId: link.inventoryId,
+        quantityPerUnit: link.quantityPerUnit
+      }));
+      await ServiceInventory.bulkCreate(links);
+    }
+
     res.status(201).json({ message: "Service added successfully", service: newService });
   } catch (error) {
     res.status(500).json({ message: "Error adding service", error: error.message });
@@ -154,6 +164,18 @@ export const updateService = async (req, res) => {
       imageUrl: imageUrl !== undefined ? imageUrl : service.imageUrl,
       isActive: isActive !== undefined ? isActive : service.isActive,
     });
+
+    // Sync inventory linkage
+    if (req.body.inventoryLinks && Array.isArray(req.body.inventoryLinks)) {
+      // Simplest way: Delete old and create new
+      await ServiceInventory.destroy({ where: { serviceId: id } });
+      const links = req.body.inventoryLinks.map(link => ({
+        serviceId: id,
+        inventoryId: link.inventoryId,
+        quantityPerUnit: link.quantityPerUnit
+      }));
+      await ServiceInventory.bulkCreate(links);
+    }
 
     res.status(200).json({ message: "Service updated successfully", service });
   } catch (error) {
@@ -191,8 +213,8 @@ export const getShopAnalytics = async (req, res) => {
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const sixMonthSeries = [];
     for (let i = 5; i >= 0; i--) {
-       let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-       sixMonthSeries.push({ month: monthNames[d.getMonth()], earned: 0, year: d.getFullYear(), monthInt: d.getMonth() });
+      let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      sixMonthSeries.push({ month: monthNames[d.getMonth()], earned: 0, year: d.getFullYear(), monthInt: d.getMonth() });
     }
 
     orders.forEach(order => {
@@ -209,14 +231,14 @@ export const getShopAnalytics = async (req, res) => {
 
       const diffMonths = (now.getFullYear() - orderDate.getFullYear()) * 12 + (now.getMonth() - orderDate.getMonth());
       if (diffMonths >= 0 && diffMonths <= 5) {
-         const bucket = sixMonthSeries.find(b => b.monthInt === orderDate.getMonth() && b.year === orderDate.getFullYear());
-         if (bucket) {
-            bucket.earned += amt;
-         }
+        const bucket = sixMonthSeries.find(b => b.monthInt === orderDate.getMonth() && b.year === orderDate.getFullYear());
+        if (bucket) {
+          bucket.earned += amt;
+        }
       }
 
       // Top Services Mapping
-      if (order.service) { 
+      if (order.service) {
         const sName = order.service.serviceName || "Unknown";
         if (!topServicesMap[sName]) topServicesMap[sName] = { name: sName, count: 0, revenue: 0 };
         topServicesMap[sName].count += 1;
@@ -225,30 +247,30 @@ export const getShopAnalytics = async (req, res) => {
 
       // Geographical Area Mapping
       if (order.deliveryAddress) {
-         let area = "Unknown";
-         if (typeof order.deliveryAddress === 'string') {
-            try {
-               const parsed = JSON.parse(order.deliveryAddress);
-               area = parsed.city || parsed.pincode || "Local";
-            } catch (e) {
-               area = order.deliveryAddress.substring(0, 20); 
-            }
-         } else if (typeof order.deliveryAddress === 'object') {
-            area = order.deliveryAddress.city || order.deliveryAddress.pincode || "Local";
-         }
-         
-         if (area && area !== "Unknown") {
-            if (!areaMap[area]) areaMap[area] = 0;
-            areaMap[area] += 1;
-         }
+        let area = "Unknown";
+        if (typeof order.deliveryAddress === 'string') {
+          try {
+            const parsed = JSON.parse(order.deliveryAddress);
+            area = parsed.city || parsed.pincode || "Local";
+          } catch (e) {
+            area = order.deliveryAddress.substring(0, 20);
+          }
+        } else if (typeof order.deliveryAddress === 'object') {
+          area = order.deliveryAddress.city || order.deliveryAddress.pincode || "Local";
+        }
+
+        if (area && area !== "Unknown") {
+          if (!areaMap[area]) areaMap[area] = 0;
+          areaMap[area] += 1;
+        }
       } else {
-         if (!areaMap["In-Store Pickup"]) areaMap["In-Store Pickup"] = 0;
-         areaMap["In-Store Pickup"] += 1;
+        if (!areaMap["In-Store Pickup"]) areaMap["In-Store Pickup"] = 0;
+        areaMap["In-Store Pickup"] += 1;
       }
     });
 
-    const topServices = Object.values(topServicesMap).sort((a,b) => b.revenue - a.revenue).slice(0, 5);
-    const ordersByArea = Object.entries(areaMap).map(([area, count]) => ({ area, count })).sort((a,b) => b.count - a.count).slice(0, 6);
+    const topServices = Object.values(topServicesMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const ordersByArea = Object.entries(areaMap).map(([area, count]) => ({ area, count })).sort((a, b) => b.count - a.count).slice(0, 6);
 
     res.status(200).json({
       analytics: {
@@ -272,7 +294,7 @@ export const getShopAnalytics = async (req, res) => {
 export const getAllShops = async (req, res) => {
   try {
     const { lat, lng, service, sort } = req.query;
-    
+
     let shops;
 
     // Service include block configuration
@@ -315,7 +337,7 @@ export const getAllShops = async (req, res) => {
         orderClause = [[{ model: Service, as: "services" }, "price", "ASC"]];
       }
 
-      shops = await Shop.findAll({ 
+      shops = await Shop.findAll({
         where: { isActive: true },
         include: [serviceInclude],
         order: orderClause,

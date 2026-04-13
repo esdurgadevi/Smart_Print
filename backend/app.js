@@ -1,5 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
+
+dotenv.config();
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
@@ -9,9 +11,10 @@ import orderRoutes from "./routes/orderRoutes.js";
 import feedbackRoutes from "./routes/feedbackRoutes.js";
 import deliveryRoutes from "./routes/deliveryRoutes.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
+import discountRoutes from "./routes/discountRoutes.js";
+import inventoryRoutes from "./routes/inventoryRoutes.js";
 import cors from "cors";
 
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,4 +31,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/admin", superAdminRoutes);
+app.use("/api/discounts", discountRoutes);
+app.use("/api/inventory", inventoryRoutes);
+
 export default app;

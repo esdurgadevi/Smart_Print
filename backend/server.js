@@ -1,6 +1,6 @@
 import app from "./app.js";
 import sequelize from "./config/db.js";
-import { User, Shop, Service, Order, Feedback, Discount, DeliveryPerson } from "./models/index.js";
+import { User, Shop, Service, Order, Feedback, Discount, DeliveryPerson, Inventory, ServiceInventory } from "./models/index.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,5 +19,6 @@ const startServer = async () => {
     console.error("❌ DB connection failed:", err);
   }
 };
+
 
 startServer();

@@ -1,7 +1,8 @@
-import { Order, Shop, User, Service } from "../models/index.js";
+import { Order, Shop, User, Service, Inventory, ServiceInventory } from "../models/index.js";
 import fs from "fs";
 import { sendOrderCompletedEmail } from "../services/emailService.js";
 import { PDFDocument } from "pdf-lib";
+import sequelize from "../config/db.js";
 import { DeliveryPerson } from "../models/index.js";
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -178,28 +179,69 @@ export const getShopOrders = async (req, res) => {
 };
 
 export const updateOrderStatus = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    const order = await Order.findByPk(id, { include: ["user"] });
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    const order = await Order.findByPk(id, { include: ["user", "service"], transaction });
+    if (!order) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Order not found" });
+    }
 
-    const shop = await Shop.findOne({ where: { adminId: req.user.id } });
+    const shop = await Shop.findOne({ where: { adminId: req.user.id }, transaction });
     if (!shop || order.shopId !== shop.id) {
+      await transaction.rollback();
       return res.status(403).json({ message: "Not authorized to update this order" });
     }
 
-    order.status = status;
-    await order.save();
+    // IF COMPLETED: Reduce stock
+    if (status === "completed" && order.status !== "completed") {
+      // 1. Find all linked inventory for this service
+      const inventoryLinks = await ServiceInventory.findAll({
+        where: { serviceId: order.serviceId },
+        transaction
+      });
 
-    // Trigger notification email if completed
+      if (inventoryLinks.length > 0) {
+        for (const link of inventoryLinks) {
+          const item = await Inventory.findByPk(link.inventoryId, { transaction, lock: transaction.LOCK.UPDATE });
+          if (!item) continue;
+
+          // Consumption = units_per_service * order_quantity
+          // Assuming 'copies' or 'pageCount' * 'copies' is the multiplier
+          // For spiral, it's usually 1 per order. For paper, it's pageCount * copies.
+          // Let's assume quantityPerUnit is a multiplier for the 'copies' for simple items, 
+          // but if it's paper, it might be pageCount * copies.
+          // The most flexible way is to just use 'order.copies' as the base multiplier.
+          const totalConsumption = link.quantityPerUnit * order.copies;
+
+          if (item.stockCount < totalConsumption) {
+            await transaction.rollback();
+            return res.status(400).json({
+              message: `Insufficient stock for ${item.productName}. Required: ${totalConsumption}, Available: ${item.stockCount}`
+            });
+          }
+
+          // Decrement stock
+          await item.decrement('stockCount', { by: totalConsumption, transaction });
+        }
+      }
+    }
+
+    order.status = status;
+    await order.save({ transaction });
+    await transaction.commit();
+
+    // Trigger notification email if completed (Post-Commit)
     if (status === "completed" && order.user && order.user.email) {
       sendOrderCompletedEmail(order.user.email, order.id, shop.shopName);
     }
 
     res.status(200).json({ message: "Order status updated successfully", order });
   } catch (error) {
+    if (transaction) await transaction.rollback();
     res.status(500).json({ message: "Failed to update order", error: error.message });
   }
 };
@@ -208,27 +250,27 @@ export const getLiveTracking = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const order = await Order.findOne({ 
+    const order = await Order.findOne({
       where: { id, userId: req.user.id }
     });
 
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (!order.deliveryPersonId || order.deliveryStatus === 'pending') {
-       return res.status(400).json({ message: "Order not picked up by driver yet." });
+      return res.status(400).json({ message: "Order not picked up by driver yet." });
     }
 
     const { DeliveryPerson } = await import("../models/index.js");
-    const driver = await DeliveryPerson.findOne({ where: { userId: order.deliveryPersonId }});
+    const driver = await DeliveryPerson.findOne({ where: { userId: order.deliveryPersonId } });
 
     if (!driver) return res.status(404).json({ message: "Driver details not found" });
 
     res.status(200).json({
-       driverLocation: {
-          latitude: driver.currentLatitude,
-          longitude: driver.currentLongitude
-       },
-       deliveryOtp: order.deliveryOtp
+      driverLocation: {
+        latitude: driver.currentLatitude,
+        longitude: driver.currentLongitude
+      },
+      deliveryOtp: order.deliveryOtp
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch tracking data", error: error.message });

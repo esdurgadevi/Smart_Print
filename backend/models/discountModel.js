@@ -36,6 +36,14 @@ const discountModel = sequelize.define(
       type: DataTypes.DECIMAL(5, 2),
       allowNull: false,
     },
+    startDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    endDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
