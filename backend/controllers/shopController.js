@@ -47,7 +47,13 @@ export const getMyShop = async (req, res) => {
   try {
     const shop = await Shop.findOne({
       where: { adminId: req.user.id },
-      include: [{ model: Service, as: "services" }],
+      include: [
+        { 
+          model: Service, 
+          as: "services",
+          include: [{ model: ServiceInventory, as: "inventoryLinks" }]
+        }
+      ],
     });
 
     if (!shop) {
@@ -357,7 +363,15 @@ export const getShopDetails = async (req, res) => {
 
     const shop = await Shop.findOne({
       where: { id, isActive: true },
-      include: [{ model: Service, as: "services", where: { isActive: true }, required: false }],
+      include: [
+        { 
+          model: Service, 
+          as: "services", 
+          where: { isActive: true }, 
+          required: false,
+          include: [{ model: ServiceInventory, as: "inventoryLinks" }]
+        }
+      ],
     });
 
     if (!shop) {

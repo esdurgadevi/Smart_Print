@@ -180,69 +180,97 @@ export const getShopOrders = async (req, res) => {
 
 export const updateOrderStatus = async (req, res) => {
   const transaction = await sequelize.transaction();
+
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    const order = await Order.findByPk(id, { include: ["user", "service"], transaction });
+    const order = await Order.findByPk(id, {
+      transaction
+    });
+
     if (!order) {
       await transaction.rollback();
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const shop = await Shop.findOne({ where: { adminId: req.user.id }, transaction });
+    const shop = await Shop.findOne({
+      where: { adminId: req.user.id },
+      transaction
+    });
+
     if (!shop || order.shopId !== shop.id) {
       await transaction.rollback();
-      return res.status(403).json({ message: "Not authorized to update this order" });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    // IF COMPLETED: Reduce stock
-    if (status === "completed" && order.status !== "completed") {
-      // 1. Find all linked inventory for this service
+    console.log("OLD STATUS:", order.status);
+    console.log("NEW STATUS:", status);
+
+    // ✅ FORCE RUN (remove double-check issue)
+    if (status === "completed") {
+
       const inventoryLinks = await ServiceInventory.findAll({
         where: { serviceId: order.serviceId },
         transaction
       });
 
-      if (inventoryLinks.length > 0) {
-        for (const link of inventoryLinks) {
-          const item = await Inventory.findByPk(link.inventoryId, { transaction, lock: transaction.LOCK.UPDATE });
-          if (!item) continue;
+      console.log("Inventory Links:", inventoryLinks.length);
 
-          // Consumption = units_per_service * order_quantity
-          // Assuming 'copies' or 'pageCount' * 'copies' is the multiplier
-          // For spiral, it's usually 1 per order. For paper, it's pageCount * copies.
-          // Let's assume quantityPerUnit is a multiplier for the 'copies' for simple items, 
-          // but if it's paper, it might be pageCount * copies.
-          // The most flexible way is to just use 'order.copies' as the base multiplier.
-          const totalConsumption = link.quantityPerUnit * order.copies;
+      for (const link of inventoryLinks) {
 
-          if (item.stockCount < totalConsumption) {
-            await transaction.rollback();
-            return res.status(400).json({
-              message: `Insufficient stock for ${item.productName}. Required: ${totalConsumption}, Available: ${item.stockCount}`
-            });
-          }
+        const item = await Inventory.findByPk(link.inventoryId, { transaction });
 
-          // Decrement stock
-          await item.decrement('stockCount', { by: totalConsumption, transaction });
+        if (!item) continue;
+
+        // ✅ CORRECT MULTIPLIER
+        let multiplier = 1;
+
+        if (order.pageCount && order.pageCount > 0) {
+          multiplier = order.pageCount * order.copies;
+        } else {
+          multiplier = order.copies;
         }
+
+        const totalConsumption = link.quantityPerUnit * multiplier;
+
+        console.log(`Reducing ${item.productName}`);
+        console.log("Stock Before:", item.stockCount);
+        console.log("Consumption:", totalConsumption);
+
+        if (item.stockCount < totalConsumption) {
+          await transaction.rollback();
+          return res.status(400).json({
+            message: `Insufficient stock for ${item.productName}`
+          });
+        }
+
+        await item.decrement("stockCount", {
+          by: totalConsumption,
+          transaction
+        });
+
+        console.log("Stock Reduced");
       }
     }
 
     order.status = status;
     await order.save({ transaction });
+
     await transaction.commit();
 
-    // Trigger notification email if completed (Post-Commit)
-    if (status === "completed" && order.user && order.user.email) {
-      sendOrderCompletedEmail(order.user.email, order.id, shop.shopName);
-    }
+    res.status(200).json({
+      message: "Order updated successfully",
+      order
+    });
 
-    res.status(200).json({ message: "Order status updated successfully", order });
   } catch (error) {
-    if (transaction) await transaction.rollback();
-    res.status(500).json({ message: "Failed to update order", error: error.message });
+    await transaction.rollback();
+    console.error(error);
+    res.status(500).json({
+      message: "Failed",
+      error: error.message
+    });
   }
 };
 
