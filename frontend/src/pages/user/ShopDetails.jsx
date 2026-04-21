@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import shopService from "../../services/shopService";
-import { Store, MapPin, ArrowLeft, Package, Clock, ShieldCheck, ShoppingCart, Trash2, CheckCircle2, Star, MessageSquare, Phone, Mail, Navigation, X, Tag } from "lucide-react";
+import { Store, MapPin, ArrowLeft, Package, Clock, ShieldCheck, ShoppingCart, Trash2, CheckCircle2, Star, MessageSquare, Phone, Mail, Navigation, X, Tag, Users } from "lucide-react";
 import OrderModal from "../../components/user/OrderModal";
 import { useCart } from "../../context/CartContext";
 import { placeBatchOrder } from "../../services/orderService";
@@ -138,11 +138,15 @@ const ShopDetails = () => {
                 <span className="flex items-center gap-1 bg-black/20 px-3 py-1 rounded-full text-sm">
                   <MapPin className="h-4 w-4" /> {shop.address}
                 </span>
-                <span className="flex items-center gap-1 bg-orange-500/20 text-orange-200 px-3 py-1 rounded-full text-sm">
-                  <Star className="h-4 w-4 fill-orange-500" />
-                  {averageRating > 0 ? `${averageRating.toFixed(1)} (${feedbacks.length} reviews)` : "New Shop"}
-                </span>
-              </div>
+                  <span className="flex items-center gap-1 bg-orange-500/20 text-orange-200 px-3 py-1 rounded-full text-sm">
+                    <Star className="h-4 w-4 fill-orange-500" />
+                    {averageRating > 0 ? `${averageRating.toFixed(1)} (${feedbacks.length} reviews)` : "New Shop"}
+                  </span>
+                  <span className="flex items-center gap-1 bg-blue-500/20 text-blue-200 px-3 py-1 rounded-full text-sm">
+                    <Users className="h-4 w-4" />
+                    {shop.queueCount || 0} In Queue
+                  </span>
+                </div>
             </div>
           </div>
         </div>
@@ -170,6 +174,15 @@ const ShopDetails = () => {
               <div>
                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Quality</p>
                 <p className="text-sm italic">Guaranteed</p>
+              </div>
+            </div>
+            <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center gap-3 text-gray-800 font-medium">
+              <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center shadow-sm">
+                <Users className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 font-bold uppercase tracking-wider">Current Queue</p>
+                <p className="text-sm italic">{shop.queueCount || 0} Orders Waiting</p>
               </div>
             </div>
           </div>
@@ -380,6 +393,7 @@ const ShopDetails = () => {
         service={selectedService}
         discounts={discounts}
         storeHours={shop.storeHours}
+        queueCount={shop.queueCount}
       />
 
       {/* Floating Cart / Checkout Banner */}

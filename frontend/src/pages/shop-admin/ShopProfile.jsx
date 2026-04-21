@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import shopService from "../../services/shopService";
-import { Store, MapPin, Phone, Edit, MessageSquare, Clock, Mail, Navigation, Save, X, Star } from "lucide-react";
+import { Store, MapPin, Phone, Edit, MessageSquare, Clock, Mail, Navigation, Save, X, Star, ListOrdered } from "lucide-react";
 
 const defaultHours = {
   monday: "09:00 AM - 06:00 PM",
@@ -49,6 +49,7 @@ const ShopProfile = () => {
         whatsapp: data.shop.whatsapp || "",
         directions: data.shop.directions || "",
         storeHours: data.shop.storeHours || defaultHours,
+        queueType: data.shop.queueType || "FIFO",
       });
     } catch (err) {
       if (err.response?.status === 404) {
@@ -245,7 +246,53 @@ const ShopProfile = () => {
             )}
           </div>
 
-          {/* Location & Map */}
+          {/* Queue Management Section */}
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+            <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <ListOrdered className="h-5 w-5 text-orange-500" /> Queue Strategy
+            </h3>
+            <p className="text-sm text-gray-500 mb-6 font-medium">Define how orders are ranked and processed in your shop.</p>
+
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {['FIFO', 'SJF', 'MANUAL'].map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setFormData(prev => ({ ...prev, queueType: type }))}
+                      className={`p-4 rounded-2xl border-2 text-left transition-all ${formData.queueType === type ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}
+                    >
+                      <p className="font-bold text-gray-900">{type}</p>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">
+                        {type === 'FIFO' ? 'First In First Out' : type === 'SJF' ? 'Shortest Job First' : 'Custom Priority'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                  <p className="text-xs text-blue-800 leading-relaxed font-medium">
+                    {formData.queueType === 'FIFO' && "Orders will be sorted by their creation time. Standard first-come, first-served logic."}
+                    {formData.queueType === 'SJF' && "Orders with fewer total pages will move to the front of the queue to ensure quick throughput for simple jobs."}
+                    {formData.queueType === 'MANUAL' && "You will have full control to move orders up and down the queue manually in the Orders tab."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600">
+                  <ListOrdered className="h-8 w-8" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900 capitalize">{shop?.queueType || "FIFO"} Strategy</p>
+                  <p className="text-gray-500 font-medium">
+                    {shop?.queueType === 'SJF' ? "Prioritizing smaller jobs first." : shop?.queueType === 'MANUAL' ? "Using custom priority levels." : "Processing in sequence of arrival."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location & Map Area */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
               <MapPin className="h-5 w-5 text-orange-500" /> Location Details

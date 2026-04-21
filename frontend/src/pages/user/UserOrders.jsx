@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, FileText, Clock, ExternalLink, Store, Package, Star, MapPin, Truck } from "lucide-react";
+import { ShoppingBag, FileText, Clock, ExternalLink, Store, Package, Star, MapPin, Truck, Users } from "lucide-react";
 import { getMyOrders, getLiveTracking } from "../../services/orderService";
 import FeedbackModal from "../../components/user/FeedbackModal";
 
@@ -19,6 +19,9 @@ const UserOrders = () => {
 
   useEffect(() => {
     fetchOrders();
+    // Refresh queue positions every 15 seconds
+    const interval = setInterval(fetchOrders, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchOrders = async () => {
@@ -111,36 +114,46 @@ const UserOrders = () => {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {orders.map((order) => (
             <div key={order.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col relative group">
-               <div className="p-6 border-b border-gray-50">
-                 <div className="flex justify-between items-start mb-4">
-                   <div className="flex items-center gap-2">
-                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${getStatusColor(order.status)}`}>
-                       {order.status}
-                     </span>
-                     <span className="text-xs text-gray-400 font-medium">#{order.id.toString().padStart(4, '0')}</span>
-                   </div>
-                   <span className="text-sm text-gray-500 font-medium flex items-center gap-1">
-                     <Clock className="h-4 w-4" /> {new Date(order.createdAt).toLocaleDateString()}
-                   </span>
-                 </div>
-                 
-                 <div className="flex items-start gap-4 mb-2">
-                   <div className="h-12 w-12 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 shrink-0">
-                     <Store className="h-6 w-6 text-gray-400" />
-                   </div>
-                   <div>
-                     <h3 className="font-bold text-gray-900 truncate pr-2 max-w-[200px]">{order.shop?.shopName || "Unknown Shop"}</h3>
-                     <p className="text-sm text-gray-500 truncate max-w-[200px]">{order.service?.serviceName || "Unknown Service"}</p>
-                   </div>
-                 </div>
-                 
-                 {/* Show Delivery Status if applicable */}
-                 {order.deliveryType === 'delivery' && (
-                    <p className="text-xs font-bold text-orange-600 mt-2 bg-orange-50 inline-block px-2 py-1 rounded">
-                      Delivery: {order.deliveryStatus ? order.deliveryStatus.toUpperCase() : "PENDING"}
-                    </p>
-                 )}
-               </div>
+                <div className="p-6 border-b border-gray-50">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                      <span className="text-xs text-gray-400 font-medium">#{order.id.toString().padStart(4, '0')}</span>
+                    </div>
+                    <span className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                      <Clock className="h-4 w-4" /> {new Date(order.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-start gap-4 mb-2">
+                    <div className="h-12 w-12 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 shrink-0">
+                      <Store className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900 truncate pr-2 max-w-[200px]">{order.shop?.shopName || "Unknown Shop"}</h3>
+                      <p className="text-sm text-gray-500 truncate max-w-[200px]">{order.service?.serviceName || "Unknown Service"}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Show Delivery Status if applicable */}
+                  {order.deliveryType === 'delivery' && (
+                     <p className="text-xs font-bold text-orange-600 mt-2 bg-orange-50 inline-block px-2 py-1 rounded">
+                       Delivery: {order.deliveryStatus ? order.deliveryStatus.toUpperCase() : "PENDING"}
+                     </p>
+                  )}
+
+                  {/* Queue Position Badge */}
+                  {['pending', 'accepted'].includes(order.status) && (
+                    <div className="mt-3 flex items-center gap-2 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-xl animate-pulse">
+                      <Users className="h-4 w-4 text-purple-500" />
+                      <span className="text-xs font-bold text-purple-700">
+                        Position in Queue: #{order.queuePosition || "?"}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                <div className="p-6 bg-gray-50 flex-1">
                  <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 shadow-sm mb-6">

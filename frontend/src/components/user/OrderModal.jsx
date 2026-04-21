@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, UploadCloud, FileText, CheckCircle2 } from "lucide-react";
+import { X, UploadCloud, FileText, CheckCircle2, Users } from "lucide-react";
 import { uploadDocument } from "../../services/orderService";
 import { useCart } from "../../context/CartContext";
 import { getShopStatus } from "../../utils/shopUtils";
@@ -65,7 +65,7 @@ const DiscountCelebrationPopup = ({ discount, serviceName, savings, onClose }) =
   );
 };
 
-const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHours }) => {
+const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHours, queueCount }) => {
   const { addToCart } = useCart();
   const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -265,6 +265,17 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
                 <div className="ml-auto text-right">
                   <div className="text-xl font-extrabold text-orange-600">{pageCount}</div>
                   <div className="text-xs text-gray-500 font-medium tracking-wide">PAGES FOUND</div>
+                </div>
+              </div>
+
+              {/* Queue Status Information */}
+              <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 flex items-center gap-3">
+                <div className="h-10 w-10 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center shrink-0">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-purple-900">Current Queue: {queueCount || 0} Orders</p>
+                  <p className="text-[10px] text-purple-600 font-medium uppercase tracking-tight">Your order will be placed at the end of the current queue</p>
                 </div>
               </div>
 

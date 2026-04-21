@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import shopService from "../../services/shopService";
-import { Store, MapPin, Search, Tag, Clock } from "lucide-react";
+import { Store, MapPin, Search, Tag, Clock, Users } from "lucide-react";
 import { getShopStatus } from "../../utils/shopUtils";
 import axios from "axios";
 
@@ -186,6 +186,12 @@ const UserDashboard = () => {
                       </div>
                     );
                   })()}
+
+                  {/* Queue Badge */}
+                  <div className="absolute bottom-4 right-4 bg-gray-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-700 text-white shadow-sm flex items-center gap-1.5">
+                    <Users className="h-3 w-3" />
+                    {shop.queueCount || 0} In Queue
+                  </div>
                 </div>
 
                 <div className="p-6 flex flex-col flex-1">

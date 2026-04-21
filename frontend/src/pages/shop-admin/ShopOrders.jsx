@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Package, Clock, CheckCircle2, XCircle, Search, Filter } from "lucide-react";
-import { getShopOrders, updateOrderStatus } from "../../services/orderService";
+import { Package, Clock, CheckCircle2, XCircle, Search, Filter, ArrowUp, ArrowDown, ListOrdered, ChevronDown } from "lucide-react";
+import { getShopOrders, updateOrderStatus, updateOrderPriority } from "../../services/orderService";
+import shopService from "../../services/shopService";
 
 const ShopOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
+  const [queueType, setQueueType] = useState("FIFO");
 
   useEffect(() => {
     fetchOrders();
@@ -17,6 +19,7 @@ const ShopOrders = () => {
       setLoading(true);
       const data = await getShopOrders();
       setOrders(data.orders);
+      setQueueType(data.queueType || "FIFO");
     } catch (err) {
       setError("Failed to fetch orders.");
     } finally {
@@ -34,6 +37,28 @@ const ShopOrders = () => {
     }
   };
 
+  const handleUpdatePriority = async (orderId, currentPriority, direction) => {
+    try {
+      const newPriority = direction === 'up' ? currentPriority + 1 : Math.max(0, currentPriority - 1);
+      await updateOrderPriority(orderId, newPriority);
+      // Refresh to get new sorted list
+      fetchOrders();
+    } catch (err) {
+      alert("Failed to update priority");
+    }
+  };
+
+  const handleQueueTypeChange = async (newType) => {
+    try {
+      await shopService.updateShop({ queueType: newType });
+      setQueueType(newType);
+      // Re-fetch orders to see them in new sorted order
+      fetchOrders();
+    } catch (err) {
+      alert("Failed to update queue strategy");
+    }
+  };
+
   const filteredOrders = orders.filter(o => filter === "all" || o.status === filter);
 
   return (
@@ -43,7 +68,33 @@ const ShopOrders = () => {
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Package className="h-8 w-8 text-orange-500" /> Incoming Orders
           </h1>
-          <p className="text-gray-500 mt-2">Manage customer requests and update print statuses.</p>
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-gray-500">Manage customer requests and update print statuses.</p>
+            
+            {/* Strategy Switcher */}
+            <div className="relative group">
+              <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1 rounded-full border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors">
+                 <ListOrdered className="h-3 w-3 text-orange-600" />
+                 <span className="text-[10px] font-black text-orange-700 uppercase tracking-tight">{queueType} Active</span>
+                 <ChevronDown className="h-3 w-3 text-orange-400" />
+              </div>
+              
+              {/* Dropdown Menu */}
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <p className="px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50 mb-1">Select Strategy</p>
+                {['FIFO', 'SJF', 'MANUAL'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => handleQueueTypeChange(type)}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold hover:bg-gray-50 transition-colors flex items-center justify-between ${queueType === type ? 'text-orange-600' : 'text-gray-600'}`}
+                  >
+                    {type === 'FIFO' ? 'FIFO (Default)' : type === 'SJF' ? 'SJF (Shortest Job)' : 'Manual Priority'}
+                    {queueType === type && <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
         
         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1">
@@ -116,6 +167,26 @@ const ShopOrders = () => {
                   )}
 
                   <div className="space-y-2 w-full mt-2">
+                    {/* Priority Controls for Manual Mode */}
+                    {queueType === 'MANUAL' && ['pending', 'accepted'].includes(order.status) && (
+                      <div className="flex gap-2 mb-2">
+                        <button 
+                          onClick={() => handleUpdatePriority(order.id, order.priority, 'up')}
+                          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-xl flex items-center justify-center transition-all"
+                          title="Move Up"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleUpdatePriority(order.id, order.priority, 'down')}
+                          className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-xl flex items-center justify-center transition-all"
+                          title="Move Down"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
                     {order.status === "pending" && (
                       <>
                         <button onClick={() => handleUpdateStatus(order.id, 'accepted')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-200 transition-all text-sm">
