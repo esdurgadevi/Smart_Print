@@ -15,7 +15,7 @@ export const createShop = async (req, res) => {
       addressNo, street, location, city, pincode, fullAddress,
       phone, email, whatsapp,
       directions, latitude, longitude,
-      storeHours
+      storeHours, queueType
     } = req.body;
 
     // Check if user already has a shop
@@ -33,7 +33,7 @@ export const createShop = async (req, res) => {
       addressNo, street, location, city, pincode, fullAddress,
       phone, email, whatsapp,
       directions, latitude, longitude,
-      storeHours
+      storeHours, queueType
     });
 
     res.status(201).json({ message: "Shop created successfully", shop: newShop });
@@ -83,7 +83,7 @@ export const updateShop = async (req, res) => {
       addressNo, street, location, city, pincode, fullAddress,
       phone, email, whatsapp,
       directions, latitude, longitude,
-      storeHours, isActive
+      storeHours, isActive, queueType
     } = req.body;
 
     await shop.update({
@@ -105,6 +105,7 @@ export const updateShop = async (req, res) => {
       longitude: longitude !== undefined ? longitude : shop.longitude,
       storeHours: storeHours !== undefined ? storeHours : shop.storeHours,
       isActive: isActive !== undefined ? isActive : shop.isActive,
+      queueType: queueType !== undefined ? queueType : shop.queueType,
     });
 
     res.status(200).json({ message: "Shop updated successfully", shop });
@@ -333,7 +334,18 @@ export const getAllShops = async (req, res) => {
         where: { isActive: true },
         include: [serviceInclude],
         attributes: {
-          include: [[distanceLiteral, "distance_km"]],
+          include: [
+            [distanceLiteral, "distance_km"],
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*)
+                FROM orders AS o
+                WHERE o.shopId = Shop.id
+                AND o.status IN ('pending', 'accepted')
+              )`),
+              'queueCount'
+            ]
+          ]
         },
         order: orderClause,
       });
@@ -346,6 +358,19 @@ export const getAllShops = async (req, res) => {
       shops = await Shop.findAll({
         where: { isActive: true },
         include: [serviceInclude],
+        attributes: {
+          include: [
+            [
+              sequelize.literal(`(
+                SELECT COUNT(*)
+                FROM orders AS o
+                WHERE o.shopId = Shop.id
+                AND o.status IN ('pending', 'accepted')
+              )`),
+              'queueCount'
+            ]
+          ]
+        },
         order: orderClause,
       });
     }
@@ -372,6 +397,19 @@ export const getShopDetails = async (req, res) => {
           include: [{ model: ServiceInventory, as: "inventoryLinks" }]
         }
       ],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM orders AS o
+              WHERE o.shopId = Shop.id
+              AND o.status IN ('pending', 'accepted')
+            )`),
+            'queueCount'
+          ]
+        ]
+      },
     });
 
     if (!shop) {

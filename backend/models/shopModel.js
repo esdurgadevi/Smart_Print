@@ -104,6 +104,10 @@ const shopModel = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    queueType: {
+      type: DataTypes.ENUM("FIFO", "SJF", "MANUAL"),
+      defaultValue: "FIFO",
+    },
   },
   {
     tableName: "shops",

@@ -1,4 +1,5 @@
 import { Order, Shop, User, Service, Inventory, ServiceInventory } from "../models/index.js";
+import { Op } from "sequelize";
 import fs from "fs";
 import { sendOrderCompletedEmail } from "../services/emailService.js";
 import { PDFDocument } from "pdf-lib";
@@ -105,7 +106,43 @@ export const placeOrder = async (req, res) => {
       }
     }
 
-    res.status(201).json({ message: "Order placed successfully", order: newOrder });
+    // Get shop to know queue type
+    const shop = await Shop.findByPk(shopId);
+
+    // Calculate initial queue position based on strategy
+    const where = {
+      shopId,
+      status: { [Op.in]: ['pending', 'accepted'] }
+    };
+
+    if (shop?.queueType === 'SJF') {
+      const myTotal = newOrder.pageCount * newOrder.copies;
+      where[Op.or] = [
+        sequelize.literal(`(pageCount * copies) < ${myTotal}`),
+        {
+          [Op.and]: [
+            sequelize.literal(`(pageCount * copies) = ${myTotal}`),
+            { createdAt: { [Op.lte]: newOrder.createdAt } }
+          ]
+        }
+      ];
+    } else if (shop?.queueType === 'MANUAL') {
+      where[Op.or] = [
+        { priority: { [Op.gt]: newOrder.priority } },
+        { 
+          [Op.and]: [
+            { priority: newOrder.priority },
+            { createdAt: { [Op.lte]: newOrder.createdAt } }
+          ]
+        }
+      ];
+    } else {
+      where.createdAt = { [Op.lte]: newOrder.createdAt };
+    }
+
+    const queuePosition = await Order.count({ where });
+
+    res.status(201).json({ message: "Order placed successfully", order: { ...newOrder.toJSON(), queuePosition } });
   } catch (error) {
     res.status(500).json({ message: "Failed to place order", error: error.message });
   }
@@ -118,7 +155,48 @@ export const getMyOrders = async (req, res) => {
       include: ["shop", "service"],
       order: [["createdAt", "DESC"]],
     });
-    res.status(200).json({ orders });
+
+    const ordersWithPosition = await Promise.all(orders.map(async (order) => {
+      const orderData = order.toJSON();
+      if (['pending', 'accepted'].includes(order.status)) {
+        const shop = order.shop; // Included in findAll
+        const where = {
+          shopId: order.shopId,
+          status: { [Op.in]: ['pending', 'accepted'] }
+        };
+
+        if (shop?.queueType === 'SJF') {
+          const myTotal = order.pageCount * order.copies;
+          where[Op.or] = [
+            sequelize.literal(`(pageCount * copies) < ${myTotal}`),
+            {
+              [Op.and]: [
+                sequelize.literal(`(pageCount * copies) = ${myTotal}`),
+                { createdAt: { [Op.lte]: order.createdAt } }
+              ]
+            }
+          ];
+        } else if (shop?.queueType === 'MANUAL') {
+          where[Op.or] = [
+            { priority: { [Op.gt]: order.priority } },
+            { 
+              [Op.and]: [
+                { priority: order.priority },
+                { createdAt: { [Op.lte]: order.createdAt } }
+              ]
+            }
+          ];
+        } else {
+          where.createdAt = { [Op.lte]: order.createdAt };
+        }
+
+        const position = await Order.count({ where });
+        orderData.queuePosition = position;
+      }
+      return orderData;
+    }));
+
+    res.status(200).json({ orders: ordersWithPosition });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch orders", error: error.message });
   }
@@ -160,19 +238,52 @@ export const placeBatchOrder = async (req, res) => {
   }
 };
 
-// ====== SHOP ADMIN ENDPOINTS ======
+export const updateOrderPriority = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority } = req.body;
+
+    const order = await Order.findByPk(id);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const shop = await Shop.findOne({ where: { adminId: req.user.id } });
+    if (!shop || order.shopId !== shop.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    await order.update({ priority });
+    res.status(200).json({ message: "Priority updated successfully", order });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update priority", error: error.message });
+  }
+};
 
 export const getShopOrders = async (req, res) => {
   try {
     const shop = await Shop.findOne({ where: { adminId: req.user.id } });
     if (!shop) return res.status(404).json({ message: "Shop not found" });
 
+    let orderClause = [];
+    if (shop.queueType === 'SJF') {
+      orderClause = [
+        [sequelize.literal('pageCount * copies'), 'ASC'],
+        ['createdAt', 'ASC']
+      ];
+    } else if (shop.queueType === 'MANUAL') {
+      orderClause = [
+        ['priority', 'DESC'],
+        ['createdAt', 'ASC']
+      ];
+    } else {
+      orderClause = [['createdAt', 'ASC']];
+    }
+
     const orders = await Order.findAll({
       where: { shopId: shop.id },
       include: ["user", "service"],
-      order: [["createdAt", "DESC"]],
+      order: orderClause,
     });
-    res.status(200).json({ orders });
+    res.status(200).json({ orders, queueType: shop.queueType });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch shop orders", error: error.message });
   }

@@ -1,6 +1,6 @@
 import express from "express";
 import { protect } from "../middlewares/authMiddleware.js";
-import { uploadDocument, placeOrder, getMyOrders, placeBatchOrder, getShopOrders, updateOrderStatus, getLiveTracking } from "../controllers/orderController.js";
+import { uploadDocument, placeOrder, getMyOrders, placeBatchOrder, getShopOrders, updateOrderStatus, getLiveTracking, updateOrderPriority } from "../controllers/orderController.js";
 import multer from "multer";
 
 const router = express.Router();
@@ -26,5 +26,6 @@ router.post("/", protect, placeOrder);
 // ====== ADMIN ROUTES ======
 router.get("/shop-orders", protect, getShopOrders);
 router.put("/:id/status", protect, updateOrderStatus);
+router.put("/:id/priority", protect, updateOrderPriority);
 
 export default router;

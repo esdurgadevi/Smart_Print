@@ -100,6 +100,10 @@ const orderModel = sequelize.define(
       type: DataTypes.STRING(6),
       allowNull: true,
     },
+    priority: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
   },
   {
     tableName: "orders",
