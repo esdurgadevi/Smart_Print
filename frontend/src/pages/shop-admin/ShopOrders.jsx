@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Package, Clock, CheckCircle2, XCircle, Search, Filter, ArrowUp, ArrowDown, ListOrdered, ChevronDown } from "lucide-react";
+import { Package, Clock, CheckCircle2, XCircle, Search, Filter, ArrowUp, ArrowDown, ListOrdered, ChevronDown, FileText } from "lucide-react";
 import { getShopOrders, updateOrderStatus, updateOrderPriority } from "../../services/orderService";
 import shopService from "../../services/shopService";
 
@@ -125,31 +125,60 @@ const ShopOrders = () => {
       ) : (
         <div className="grid gap-6">
           {filteredOrders.map((order) => (
-            <div key={order.id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-shadow">
+            <div key={order.id} className={`bg-white rounded-3xl p-6 shadow-sm border transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md ${order.batchId ? 'border-l-4 border-l-blue-500 border-gray-100' : 'border-gray-100'}`}>
                
                <div className="flex-1 space-y-4">
-                 <div className="flex items-center gap-3">
-                   <span className="text-lg font-bold text-gray-900">Order #{order.id.toString().padStart(4, '0')}</span>
-                   <span className="text-xs text-gray-400 flex items-center gap-1"><Clock className="h-3 w-3 "/> {new Date(order.createdAt).toLocaleString()}</span>
-                 </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-lg font-black text-gray-900 leading-none">Order #{order.id.toString().padStart(4, '0')}</span>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {order.batchId && (
+                          <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter bg-blue-50 px-1.5 py-0.5 rounded leading-none border border-blue-100">
+                            Batch: {order.batchId.split('-').pop()}
+                          </span>
+                        )}
+                        {order.splitType && (
+                          <span className={`${order.splitType === 'Color' ? 'text-orange-600 bg-orange-50 border-orange-100' : 'text-gray-600 bg-gray-50 border-gray-200'} text-[9px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded leading-none border`}>
+                            {order.splitType} SECTION
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100 ml-auto md:ml-0">
+                      <Clock className="h-3 w-3 "/> {new Date(order.createdAt).toLocaleString()}
+                    </span>
+                  </div>
 
-                 <div className="grid md:grid-cols-2 gap-4">
-                   <div className="bg-gray-50 rounded-xl p-4">
-                     <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Customer Info</p>
-                     <p className="font-bold text-gray-900">{order.user?.name || "Unknown"}</p>
-                     <p className="text-sm text-gray-600">{order.user?.email}</p>
-                   </div>
-                   <div className="bg-orange-50/50 rounded-xl p-4 border border-orange-100">
-                     <p className="text-xs text-orange-600 font-bold uppercase tracking-wider mb-1">Service Details</p>
-                     <p className="font-bold text-gray-900">{order.service?.serviceName}</p>
-                     <p className="text-sm text-gray-700 font-medium">Pages: {order.pageRange && order.pageRange !== "" ? order.pageRange : "All"} • Copies: {order.copies}</p>
-                     {order.documentUrl && (
-                       <a href={`http://localhost:5000${order.documentUrl}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm font-bold block mt-2">
-                         Download Document
-                       </a>
-                     )}
-                   </div>
-                 </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Customer Info</p>
+                      <p className="font-bold text-gray-900">{order.user?.name || "Unknown"}</p>
+                      <p className="text-sm text-gray-600">{order.user?.email}</p>
+                    </div>
+                    <div className="bg-orange-50/50 rounded-xl p-4 border border-orange-100 flex flex-col justify-center">
+                      <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <FileText className="h-3 w-3" /> Service Details
+                      </p>
+                      <h4 className="font-black text-gray-900 text-lg leading-tight mb-2">{order.service?.serviceName}</h4>
+                      
+                      <div className="flex flex-wrap gap-2 mt-auto">
+                        <div className="bg-white px-3 py-1.5 rounded-lg border border-orange-200 flex items-center gap-2 shadow-sm">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">Pages</span>
+                          <span className="text-sm font-black text-orange-700">{order.pageRange && order.pageRange !== "" ? order.pageRange : "ALL"}</span>
+                        </div>
+                        <div className="bg-white px-3 py-1.5 rounded-lg border border-orange-200 flex items-center gap-2 shadow-sm">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">Copies</span>
+                          <span className="text-sm font-black text-orange-700">{order.copies}</span>
+                        </div>
+                      </div>
+
+                      {order.documentUrl && (
+                        <a href={`http://localhost:5000${order.documentUrl}`} target="_blank" rel="noreferrer" className="mt-4 bg-gray-900 hover:bg-black text-white text-xs font-black py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md shadow-gray-200">
+                          Download Document
+                        </a>
+                      )}
+                    </div>
+                  </div>
                </div>
 
                <div className="md:w-64 shrink-0 flex flex-col items-end gap-4 border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 pl-0 md:pl-6">

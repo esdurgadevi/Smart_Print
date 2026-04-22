@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, UploadCloud, FileText, CheckCircle2, Users } from "lucide-react";
+import { X, UploadCloud, FileText, CheckCircle2, Users, Scissors, Palette, Clock } from "lucide-react";
 import { uploadDocument } from "../../services/orderService";
 import { useCart } from "../../context/CartContext";
 import { getShopStatus } from "../../utils/shopUtils";
@@ -65,7 +65,7 @@ const DiscountCelebrationPopup = ({ discount, serviceName, savings, onClose }) =
   );
 };
 
-const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHours, queueCount }) => {
+const OrderModal = ({ isOpen, onClose, shopId, service, allServices = [], discounts = [], storeHours, queueCount }) => {
   const { addToCart } = useCart();
   const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -81,6 +81,11 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
   const [hasTriggeredDiscount, setHasTriggeredDiscount] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // Split Mode State
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [colorPages, setColorPages] = useState("");
+  const [matchingService, setMatchingService] = useState(null);
+
   useEffect(() => {
     if (isOpen) {
       setStep(1);
@@ -91,8 +96,64 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
       setError("");
       setHasTriggeredDiscount(false);
       setShowCelebration(false);
+      setIsSplitMode(false);
+      setColorPages("");
+      setMatchingService(null);
     }
   }, [isOpen]);
+
+  // Find matching service for split
+  useEffect(() => {
+    if (service && isSplitMode) {
+      const isColor = service.serviceName.toLowerCase().includes("color");
+      const targetKeyword = isColor ? "black" : "color";
+      const bwAlt = ["b/w", "b&w", "grayscale", "plain"];
+      
+      const found = allServices.find(s => {
+        if (s.id === service.id) return false;
+        const name = s.serviceName.toLowerCase();
+        if (targetKeyword === "color") return name.includes("color");
+        return name.includes("black") || bwAlt.some(alt => name.includes(alt));
+      });
+      
+      if (!found && isSplitMode) {
+        alert("This shop doesn't seem to have a separate " + (isColor ? "Black & White" : "Color") + " service. All pages will be processed under the current service.");
+        setIsSplitMode(false);
+      } else {
+        setMatchingService(found);
+      }
+    }
+  }, [isSplitMode, service, allServices]);
+
+  const getInvertedRange = (rangeStr, total) => {
+    if (!rangeStr || rangeStr.trim() === "") return "All";
+    const all = Array.from({ length: total }, (_, i) => i + 1);
+    const selected = new Set();
+    rangeStr.split(',').forEach(part => {
+      if (part.includes('-')) {
+        const [s, e] = part.split('-').map(n => parseInt(n.trim()));
+        for (let i = s; i <= e; i++) selected.add(i);
+      } else {
+        selected.add(parseInt(part.trim()));
+      }
+    });
+    const inverted = all.filter(p => !selected.has(p));
+    if (inverted.length === 0) return "None";
+    
+    // Convert back to string
+    let res = [];
+    let start = inverted[0];
+    let end = start;
+    for (let i = 1; i <= inverted.length; i++) {
+       if (inverted[i] === end + 1) { end = inverted[i]; }
+       else {
+         res.push(start === end ? `${start}` : `${start}-${end}`);
+         start = inverted[i];
+         end = start;
+       }
+    }
+    return res.join(', ');
+  };
 
   // Moved early return down to comply with Rules of Hooks
 
@@ -159,6 +220,13 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
       const data = await uploadDocument(formData);
       setDocumentUrl(data.documentUrl);
       setPageCount(data.pageCount);
+      
+      // AUTO-ACTIVATE SPLIT IF COLOR DETECTED
+      if (data.autoColorPages && data.autoColorPages !== "") {
+        setIsSplitMode(true);
+        setColorPages(data.autoColorPages);
+      }
+      
       setStep(2); // move to customization
     } catch (err) {
       setError("Failed to upload document. Please try again.");
@@ -174,22 +242,88 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
 
   const handleAddToCart = () => {
     try {
-      addToCart({
-        shopId,
-        serviceId: service.id,
-        service, // keep service ref roughly for cart UI displaying name
-        documentUrl,
-        pageCount,
-        pageRange,
-        copies,
-        totalAmount: finalTotal,
-        originalAmount: originalTotal // Added for savings display
-      });
-      setStep(3); // success screen
+      if (isSplitMode && matchingService) {
+        const invertedRange = getInvertedRange(colorPages, pageCount);
+        
+        // Add Color Pages
+        addToCart({
+          shopId,
+          serviceId: service.id,
+          service,
+          documentUrl,
+          pageCount,
+          pageRange: colorPages,
+          copies,
+          totalAmount: (calculateRangePages(colorPages, true) * copies * parseFloat(service.price)), 
+          isSplit: true,
+          splitType: "Color"
+        });
+
+        // Add B/W Pages
+        if (invertedRange !== "None") {
+           addToCart({
+            shopId,
+            serviceId: matchingService.id,
+            service: matchingService,
+            documentUrl,
+            pageCount,
+            pageRange: invertedRange === "All" ? "" : invertedRange,
+            copies,
+            totalAmount: (calculateRangePages(invertedRange === "All" ? "" : invertedRange, true) * copies * parseFloat(matchingService.price)),
+            isSplit: true,
+            splitType: "B/W"
+          });
+        }
+      } else {
+        addToCart({
+          shopId,
+          serviceId: service.id,
+          service,
+          documentUrl,
+          pageCount,
+          pageRange: pageRange === "All" ? "" : pageRange,
+          copies,
+          totalAmount: finalTotal,
+          originalAmount: originalTotal,
+          isSplit: false
+        });
+      }
+      setStep(3);
     } catch (err) {
       setError("Failed to add to cart.");
     }
   };
+
+  const calculateRangePages = (range, isSplitInput = false) => {
+    if (!range || range.trim() === "" || range === "None") {
+      // In split mode, empty input for color/bw should be 0, not ALL
+      return (isSplitMode || isSplitInput) ? 0 : (pageCount || 1);
+    }
+    if (range === "All") return pageCount || 1;
+    const parts = range.split(',');
+    let count = 0;
+    for (let part of parts) {
+      if (part.includes('-')) {
+        const [s, e] = part.split('-').map(n => parseInt(n.trim()));
+        if (!isNaN(s) && !isNaN(e) && s <= e) count += (e - s + 1);
+      } else {
+        const num = parseInt(part.trim());
+        if (!isNaN(num)) count += 1;
+      }
+    }
+    return count;
+  };
+
+  // Pricing calculations for UI display
+  const colorPageResult = calculateRangePages(colorPages, true);
+  const bwPageResult = calculateRangePages(getInvertedRange(colorPages, pageCount), true);
+  
+  const colorTotal = colorPageResult * copies * costPerPage;
+  const bwService = matchingService || service; // Fallback if not split
+  const bwCostPerPage = parseFloat(bwService?.price || 0);
+  const bwTotal = bwPageResult * copies * bwCostPerPage;
+  
+  const combinedTotal = isSplitMode ? (colorTotal + bwTotal) : finalTotal;
 
   if (!isOpen || !service) return null;
 
@@ -280,19 +414,61 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold text-gray-700 block mb-1">Print Range</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 1-5, 8, 11-13 (Leave blank for ALL)"
-                    value={pageRange}
-                    onChange={(e) => setPageRange(e.target.value)}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400"
-                  />
-                  <p className="text-xs text-gray-500 mt-1.5 font-medium ml-1">
-                    Will actively print <strong className="text-gray-900">{currentPagesToPrint}</strong> pages per copy.
-                  </p>
+                {/* Color Split Toggle */}
+                <div className={`p-4 rounded-2xl border transition-all ${isSplitMode ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isSplitMode ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 shadow-sm'}`}>
+                        <Palette className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Color + B/W Split</p>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-tighter">Split one doc into two print services</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setIsSplitMode(!isSplitMode)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${isSplitMode ? 'bg-orange-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${isSplitMode ? 'translate-x-6' : ''}`} />
+                    </button>
+                  </div>
+
+                  {isSplitMode && (
+                    <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                      <div className="bg-white p-3 rounded-xl border border-orange-100">
+                        <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-1">Identify Color Pages</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1, 4-5"
+                          value={colorPages}
+                          onChange={(e) => setColorPages(e.target.value)}
+                          className="w-full text-sm font-bold bg-transparent outline-none border-none p-0 placeholder:text-gray-300"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-bold">
+                        <div className="px-2 py-1 bg-orange-100 text-orange-700 rounded-md">Color: {calculateRangePages(colorPages)} pgs</div>
+                        <div className="px-2 py-1 bg-gray-200 text-gray-700 rounded-md">B/W: {calculateRangePages(getInvertedRange(colorPages, pageCount))} pgs</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {!isSplitMode && (
+                  <div>
+                    <label className="text-sm font-bold text-gray-700 block mb-1">Print Range</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1-5, 8, 11-13 (Leave blank for ALL)"
+                      value={pageRange}
+                      onChange={(e) => setPageRange(e.target.value)}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all placeholder:text-gray-400"
+                    />
+                    <p className="text-xs text-gray-500 mt-1.5 font-medium ml-1">
+                      Will actively print <strong className="text-gray-900">{currentPagesToPrint}</strong> pages per copy.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-sm font-bold text-gray-700 block mb-1">Number of Copies</label>
@@ -319,13 +495,26 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
                 <div className="flex justify-between items-start mb-1">
                   <div>
                     <span className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Estimated Cost</span>
-                    <div className="flex gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
-                      <span>{currentPagesToPrint} pages</span> &times;
-                      <span>{copies} copies</span> &times;
-                      <span>₹{costPerPage}</span>
+                    <div className="flex flex-col gap-0.5">
+                      {!isSplitMode ? (
+                        <div className="flex gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
+                          <span>{currentPagesToPrint} pages</span> &times;
+                          <span>{copies} copies</span> &times;
+                          <span>₹{costPerPage}</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <div className="flex gap-1.5 text-[9px] font-bold text-orange-400 uppercase tracking-tighter">
+                            <span>Color: {colorPageResult} pgs</span> &times; <span>₹{costPerPage}</span> = <span>₹{colorTotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex gap-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                            <span>B/W: {bwPageResult} pgs</span> &times; <span>₹{bwCostPerPage}</span> = <span>₹{bwTotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {isEligible && (
+                  {isEligible && !isSplitMode && (
                     <div className="bg-green-500/20 text-green-400 px-2.5 py-1 rounded-lg text-[10px] font-black border border-green-500/30 animate-pulse flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 bg-green-500 rounded-full"></div>
                       OFFER UNLOCKED
@@ -333,16 +522,21 @@ const OrderModal = ({ isOpen, onClose, shopId, service, discounts = [], storeHou
                   )}
                 </div>
 
-                <div className="flex justify-between items-end">
+                <div className="flex justify-between items-end mt-2">
                   <div className="flex flex-col">
-                    {isEligible && (
+                    {isEligible && !isSplitMode && (
                       <span className="text-gray-500 line-through text-lg font-bold">₹{originalTotal.toFixed(2)}</span>
                     )}
                     <div className="text-3xl font-extrabold text-orange-400">
-                      ₹{finalTotal.toFixed(2)}
+                      ₹{combinedTotal.toFixed(2)}
                     </div>
                   </div>
-                  {isEligible && (
+                  {isSplitMode && (
+                    <div className="text-right">
+                       <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">{copies} {copies > 1 ? 'COPIES EACH' : 'COPY'}</p>
+                    </div>
+                  )}
+                  {isEligible && !isSplitMode && (
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-green-400 uppercase">You saved ₹{savings.toFixed(2)}</p>
                       <p className="text-[9px] text-gray-500 italic mt-0.5">({Number(serviceDiscount.discountPercentage).toFixed(0)}% auto-applied)</p>

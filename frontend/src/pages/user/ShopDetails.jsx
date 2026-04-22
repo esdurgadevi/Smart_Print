@@ -391,6 +391,7 @@ const ShopDetails = () => {
         onClose={() => setIsModalOpen(false)}
         shopId={shop.id}
         service={selectedService}
+        allServices={shop.services} // Pass all services for pairing
         discounts={discounts}
         storeHours={shop.storeHours}
         queueCount={shop.queueCount}

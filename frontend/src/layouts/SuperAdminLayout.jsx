@@ -25,10 +25,6 @@ const SuperAdminLayout = () => {
 
   const navItems = [
     { to: "/super-admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/super-admin/users", icon: Users, label: "Users" },
-    { to: "/super-admin/shops", icon: Store, label: "Print Shops" },
-    { to: "/super-admin/reports", icon: FileText, label: "Reports" },
-    { to: "/super-admin/settings", icon: Settings, label: "Settings" },
   ];
 
   return (
