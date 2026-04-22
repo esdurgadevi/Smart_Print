@@ -104,6 +104,15 @@ const orderModel = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    batchId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    splitType: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Color or B/W",
+    },
   },
   {
     tableName: "orders",
