@@ -48,6 +48,8 @@ const ShopProfile = () => {
         email: data.shop.email || "",
         whatsapp: data.shop.whatsapp || "",
         directions: data.shop.directions || "",
+        latitude: data.shop.latitude || "",
+        longitude: data.shop.longitude || "",
         storeHours: data.shop.storeHours || defaultHours,
         queueType: data.shop.queueType || "FIFO",
       });
@@ -117,9 +119,14 @@ const ShopProfile = () => {
 
   // A helper function to generate a map embed URL using the provided address address
   const getMapUrl = () => {
+    // Priority: Real Coords > Full Address > City Fallback
+    if (shop?.latitude && shop?.longitude) {
+      return `https://maps.google.com/maps?q=${shop.latitude},${shop.longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+    }
     const query = encodeURIComponent(shop?.fullAddress || `${shop?.city} ${shop?.pincode}`);
     return `https://maps.google.com/maps?q=${query}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
   };
+
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6 animate-in fade-in duration-500">
@@ -300,31 +307,17 @@ const ShopProfile = () => {
 
             {isEditing ? (
               <div className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Shop No / Unit</label>
-                    <input type="text" name="addressNo" value={formData.addressNo} onChange={handleInputChange} className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Street Name</label>
-                    <input type="text" name="street" value={formData.street} onChange={handleInputChange} className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Location / Area</label>
-                    <input type="text" name="location" value={formData.location} onChange={handleInputChange} className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">City</label>
-                    <input type="text" name="city" value={formData.city} onChange={handleInputChange} className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Pincode</label>
-                    <input type="text" name="pincode" value={formData.pincode} onChange={handleInputChange} className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
-                  </div>
-                </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Full Address (Override for Map)</label>
-                  <input type="text" name="fullAddress" value={formData.fullAddress} onChange={handleInputChange} placeholder="Leave blank to auto-generate from above fields" className="mt-1 w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" />
+                  <label className="text-sm font-semibold text-gray-700">Full Shop Address (Accurate Single Line)</label>
+                  <textarea 
+                    name="fullAddress" 
+                    value={formData.fullAddress} 
+                    onChange={handleInputChange} 
+                    rows="3" 
+                    placeholder="e.g. Shop No 5, Main Street, Near Landmark, City, State, PIN" 
+                    className="mt-1 w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none" 
+                  />
+                  <p className="text-xs text-gray-400 mt-2 font-medium italic">Geocoding works best when you provide the complete address in one line.</p>
                 </div>
                 <div>
                   <label className="text-sm font-semibold text-gray-700">Directions / Landmarks</label>

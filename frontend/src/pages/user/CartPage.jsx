@@ -48,7 +48,7 @@ const CartPage = () => {
   const { cartItems, cartTotal, cartShopId, removeFromCart, clearCart } = useCart();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [deliveryType, setDeliveryType] = useState("pickup");
-  const [address, setAddress] = useState({ doorNo: "", street: "", city: "", pincode: "" });
+  const [address, setAddress] = useState(""); // Unified single line address
   const navigate = useNavigate();
 
   const [shopCoords, setShopCoords] = useState(null);
@@ -65,12 +65,32 @@ const CartPage = () => {
   // Fetch shop coords
   useEffect(() => {
     if (cartShopId) {
-      shopService.getShopDetails(cartShopId).then(data => {
+      shopService.getShopDetails(cartShopId).then(async data => {
         if (data.shop) {
-          setShopCoords({
-            lat: data.shop.latitude || 13.0827,
-            lng: data.shop.longitude || 80.2707,
-          });
+          if (data.shop.latitude && data.shop.longitude) {
+            setShopCoords({
+              lat: parseFloat(data.shop.latitude),
+              lng: parseFloat(data.shop.longitude),
+            });
+          } else {
+            // FALLBACK: Geocode the shop's address if lat/lng are missing
+            const query = data.shop.fullAddress || `${data.shop.city} ${data.shop.pincode}`;
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+              const results = await res.json();
+              if (results && results.length > 0) {
+                setShopCoords({
+                  lat: parseFloat(results[0].lat),
+                  lng: parseFloat(results[0].lon),
+                });
+              } else {
+                // Absolute last resort default (Chennai)
+                setShopCoords({ lat: 13.0827, lng: 80.2707 });
+              }
+            } catch (e) {
+              setShopCoords({ lat: 13.0827, lng: 80.2707 });
+            }
+          }
         }
       }).catch(() => { });
     }
@@ -88,7 +108,7 @@ const CartPage = () => {
 
   // Debounced geocoding
   useEffect(() => {
-    const fullAddress = `${address.doorNo} ${address.street} ${address.city} ${address.pincode}`.trim();
+    const fullAddress = address.trim();
     if (fullAddress.length < 5 || !shopCoords) return;
 
     setIsCalculatingDistance(true);
@@ -96,20 +116,13 @@ const CartPage = () => {
       try {
         let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`);
         let data = await res.json();
-        if (!data || !data.length) {
-          const fb = `${address.city} ${address.pincode}`.trim();
-          if (fb.length > 3) {
-            res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fb)}`);
-            data = await res.json();
-          }
-        }
+        
         if (data && data.length) {
           const dist = getDistanceFromLatLonInKm(shopCoords.lat, shopCoords.lng, parseFloat(data[0].lat), parseFloat(data[0].lon));
           setDeliveryDistanceKm(Math.max(0.5, dist));
         } else {
-          let hash = 0;
-          for (let i = 0; i < fullAddress.length; i++) hash = ((hash << 5) - hash) + fullAddress.charCodeAt(i);
-          setDeliveryDistanceKm(1.5 + (Math.abs(hash % 80) / 10));
+          // Fallback to a random small distance if geocoding totally fails but address is provided
+          setDeliveryDistanceKm(2.5);
         }
       } catch (e) {
         console.error("Geocoding failed", e);
@@ -121,20 +134,6 @@ const CartPage = () => {
     return () => clearTimeout(timer);
   }, [address, shopCoords]);
 
-  const handleUseMyGPS = () => {
-    if (!navigator.geolocation) { alert("Geolocation not supported"); return; }
-    setIsCalculatingDistance(true);
-    navigator.geolocation.getCurrentPosition(async position => {
-      const { latitude: userLat, longitude: userLng } = position.coords;
-      if (shopCoords) setDeliveryDistanceKm(Math.max(0.1, getDistanceFromLatLonInKm(shopCoords.lat, shopCoords.lng, userLat, userLng)));
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
-        const data = await res.json();
-        if (data?.address) setAddress({ doorNo: "", street: data.address.road || data.address.suburb || "", city: data.address.city || data.address.town || "", pincode: data.address.postcode || "" });
-      } catch (e) { console.error(e); }
-      finally { setIsCalculatingDistance(false); }
-    }, () => { alert("GPS access denied."); setIsCalculatingDistance(false); });
-  };
 
   // ── Price calculations ──
   const deliveryFee = deliveryType === "delivery" && deliveryDistanceKm > 0 ? 20 + Math.floor(deliveryDistanceKm * 5) : 0;
@@ -152,8 +151,8 @@ const CartPage = () => {
 
 
   const handleCheckoutClick = () => {
-    if (deliveryType === "delivery" && (!address.doorNo || !address.street || !address.city || !address.pincode)) {
-      alert("Please fill out complete delivery address."); return;
+    if (deliveryType === "delivery" && address.length < 10) {
+      alert("Please provide a more detailed delivery address."); return;
     }
     setIsPaymentOpen(true);
   };
@@ -262,17 +261,16 @@ const CartPage = () => {
               <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                 <div className="flex justify-between items-center mb-2">
                   <p className="text-sm text-gray-500 flex items-center gap-1"><MapPin className="h-4 w-4" /> Enter Delivery Address</p>
-                  <button onClick={handleUseMyGPS} className="text-orange-600 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1">
-                    <Truck className="h-3 w-3" /> Fetch Exact GPS
-                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="text" placeholder="Door No." value={address.doorNo} onChange={e => setAddress({ ...address, doorNo: e.target.value })} className="border p-3 rounded-xl focus:ring-orange-500 outline-none focus:ring-2 border-gray-200" />
-                  <input type="text" placeholder="Street" value={address.street} onChange={e => setAddress({ ...address, street: e.target.value })} className="border p-3 rounded-xl focus:ring-orange-500 outline-none focus:ring-2 border-gray-200" />
-                  <input type="text" placeholder="City" value={address.city} onChange={e => setAddress({ ...address, city: e.target.value })} className="border p-3 rounded-xl focus:ring-orange-500 outline-none focus:ring-2 border-gray-200" />
-                  <input type="text" placeholder="PIN Code" value={address.pincode} onChange={e => setAddress({ ...address, pincode: e.target.value })} className="border p-3 rounded-xl focus:ring-orange-500 outline-none focus:ring-2 border-gray-200" />
+                <div className="grid grid-cols-1 gap-4">
+                  <textarea 
+                    placeholder="Enter full delivery address (e.g. Door No, Street, Landmark, City, PIN)" 
+                    value={address} 
+                    onChange={e => setAddress(e.target.value)} 
+                    className="border p-4 rounded-xl focus:ring-orange-500 outline-none focus:ring-2 border-gray-200 w-full h-32"
+                  />
                 </div>
-                {(address.doorNo || address.street || address.city || address.pincode) && (
+                {address && (
                   <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 flex justify-between items-center text-sm font-medium animate-in fade-in zoom-in-95">
                     {isCalculatingDistance ? (
                       <span className="flex items-center gap-2 text-blue-600"><div className="animate-spin h-4 w-4 border-b-2 border-blue-600 rounded-full"></div> Querying Satellite Coordinates...</span>

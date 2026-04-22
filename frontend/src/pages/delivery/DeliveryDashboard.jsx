@@ -59,21 +59,49 @@ const DeliveryDashboard = () => {
 
   const handleToggleOnline = async () => {
     const newState = !isOnline;
-    setIsOnline(newState);
-    try {
-      // In a real app we'd get native Geolocation. Here we send a dummy coordinate to simulate it if none exists
-      const lat = profile.currentLatitude || 13.0827; // default Chennai
-      const lng = profile.currentLongitude || 80.2707;
 
-      await deliveryService.updateLocation({
-        latitude: lat,
-        longitude: lng,
-        isOnline: newState
-      });
-      fetchDashboardData();
-    } catch (error) {
-      console.error(error);
-      setIsOnline(!newState); // revert
+    if (newState) {
+      // Going Online: Request real location
+      if (!("geolocation" in navigator)) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            await deliveryService.updateLocation({
+              latitude,
+              longitude,
+              isOnline: true,
+            });
+            setIsOnline(true);
+            fetchDashboardData();
+          } catch (error) {
+            console.error("Server sync failed:", error);
+            alert("Failed to sync status with server.");
+          }
+        },
+        (error) => {
+          alert("Location access is mandatory to receive delivery requests.");
+          console.error("Geo error:", error);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      // Going Offline
+      try {
+        setIsOnline(false);
+        await deliveryService.updateLocation({
+          latitude: profile?.currentLatitude || 0,
+          longitude: profile?.currentLongitude || 0,
+          isOnline: false,
+        });
+        fetchDashboardData();
+      } catch (error) {
+        console.error("Offline sync failed:", error);
+      }
     }
   };
 
