@@ -1,4 +1,5 @@
 import { Order, DeliveryPerson, Shop, User } from "../models/index.js";
+import { sendOrderCompletedEmail } from "../services/emailService.js";
 
 // Helper for finding distance between two lat/lng pairs in km
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -212,6 +213,13 @@ export const verifyDelivery = async (req, res) => {
     order.deliveryStatus = "delivered";
     order.status = "completed"; // Mark overall order as completed
     await order.save();
+
+    // ✅ NOTIFY USER
+    const user = await User.findByPk(order.userId);
+    const shop = await Shop.findByPk(order.shopId);
+    if (user && shop) {
+      await sendOrderCompletedEmail(user.email, order.id, shop.shopName);
+    }
 
     res.status(200).json({ message: "Delivery verified successfully", order });
   } catch (error) {

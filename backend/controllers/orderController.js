@@ -203,6 +203,54 @@ const splitPdfIfNeeded = async (documentUrl, pageRange, pageCount) => {
   }
   return { documentUrl, pageCount };
 };
+const generateOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+const assignDeliveryPerson = async (newOrder) => {
+  if (newOrder.deliveryType !== "delivery") return false;
+
+  const deliveryPersons = await DeliveryPerson.findAll({
+    where: { isOnline: true },
+  });
+
+  let assigned = false;
+
+  // 1️⃣ Try nearby (within 5km)
+  for (let dp of deliveryPersons) {
+    if (dp.currentLatitude && dp.currentLongitude) {
+      const distance = calculateDistance(
+        newOrder.deliveryLatitude,
+        newOrder.deliveryLongitude,
+        dp.currentLatitude,
+        dp.currentLongitude
+      );
+
+      if (distance <= 5) {
+        await newOrder.update({
+          deliveryPersonId: dp.userId,
+          deliveryStatus: "assigned",
+        });
+        assigned = true;
+        break;
+      }
+    }
+  }
+
+  // 2️⃣ If no nearby → assign anyone
+  if (!assigned && deliveryPersons.length > 0) {
+    const randomDP = deliveryPersons[Math.floor(Math.random() * deliveryPersons.length)];
+
+    await newOrder.update({
+      deliveryPersonId: randomDP.userId,
+      deliveryStatus: "assigned",
+    });
+    assigned = true;
+  }
+
+  return assigned;
+};
+
 export const uploadDocument = async (req, res) => {
   try {
     if (!req.file) {
@@ -259,49 +307,14 @@ export const placeOrder = async (req, res) => {
       deliveryLatitude,
       deliveryLongitude,
       deliveryStatus: deliveryType === "delivery" ? "pending" : null,
+      pickupOtp: deliveryType === "delivery" ? generateOtp() : null,
+      deliveryOtp: deliveryType === "delivery" ? generateOtp() : null,
       batchId: req.body.batchId,
       splitType: req.body.splitType,
     });
+
     // ===== AUTO ASSIGN DELIVERY PERSON =====
-    if (deliveryType === "delivery") {
-      const deliveryPersons = await DeliveryPerson.findAll({
-        where: { isOnline: true }
-      });
-
-      let assigned = false;
-
-      // 1️⃣ Try nearby (within 5km)
-      for (let dp of deliveryPersons) {
-        if (dp.currentLatitude && dp.currentLongitude) {
-          const distance = calculateDistance(
-            deliveryLatitude,
-            deliveryLongitude,
-            dp.currentLatitude,
-            dp.currentLongitude
-          );
-
-          if (distance <= 5) {
-            await newOrder.update({
-              deliveryPersonId: dp.userId,
-              deliveryStatus: "assigned"
-            });
-            assigned = true;
-            break;
-          }
-        }
-      }
-
-      // 2️⃣ If no nearby → assign anyone
-      if (!assigned && deliveryPersons.length > 0) {
-        const randomDP =
-          deliveryPersons[Math.floor(Math.random() * deliveryPersons.length)];
-
-        await newOrder.update({
-          deliveryPersonId: randomDP.userId,
-          deliveryStatus: "assigned"
-        });
-      }
-    }
+    await assignDeliveryPerson(newOrder);
 
     // Get shop to know queue type
     const shop = await Shop.findByPk(shopId);
@@ -433,6 +446,9 @@ export const placeBatchOrder = async (req, res) => {
         batchId: batchId,
         splitType: item.splitType,
       });
+
+      // AUTO ASSIGN
+      await assignDeliveryPerson(newOrder);
 
       createdOrders.push(newOrder);
     }
@@ -573,11 +589,32 @@ export const updateOrderStatus = async (req, res) => {
     order.status = status;
     await order.save({ transaction });
 
+    // ✅ NOTIFICATION LOGIC
+    if (status === "completed") {
+      const user = await User.findByPk(order.userId, { transaction });
+      
+      if (order.deliveryType === "delivery") {
+        // Find assigned driver
+        if (order.deliveryPersonId) {
+          const driverUser = await User.findByPk(order.deliveryPersonId, { transaction });
+          if (driverUser) {
+            console.log(`[Notification] To Driver ${driverUser.name}: Order #${order.id} is ready for pickup at ${shop.shopName}`);
+            // In real app: sendDeliveryReadyEmail(driverUser.email, order.id, shop.shopName);
+          }
+        }
+      } else {
+        // Standard pickup order -> Notify user
+        if (user) {
+          await sendOrderCompletedEmail(user.email, order.id, shop.shopName);
+        }
+      }
+    }
+
     await transaction.commit();
 
     res.status(200).json({
       message: "Order updated successfully",
-      order
+      order,
     });
 
   } catch (error) {
